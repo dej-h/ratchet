@@ -16,3 +16,6 @@ jobs:
 
       - name: Run structural manifest/skill validation
         run: uv run tools/validate.py
+
+      - name: Run validator test suite
+        run: uv run pytest -q
