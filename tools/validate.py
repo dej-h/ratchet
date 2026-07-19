@@ -18,14 +18,15 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-MANIFESTS = {
-    "claude_plugin": REPO_ROOT / ".claude-plugin" / "plugin.json",
-    "claude_marketplace": REPO_ROOT / ".claude-plugin" / "marketplace.json",
-    "codex_plugin": REPO_ROOT / ".codex-plugin" / "plugin.json",
-    "codex_marketplace": REPO_ROOT / ".agents" / "plugins" / "marketplace.json",
+MANIFEST_PATHS = {
+    "claude_plugin": Path(".claude-plugin") / "plugin.json",
+    "claude_marketplace": Path(".claude-plugin") / "marketplace.json",
+    "codex_plugin": Path(".codex-plugin") / "plugin.json",
+    "codex_marketplace": Path(".agents") / "plugins" / "marketplace.json",
 }
 
 
@@ -33,98 +34,164 @@ class ValidationError(Exception):
     """Raised for any failed check; the message is the failure reason."""
 
 
-def load_json(path: Path) -> dict:
+def load_json(path: Path, repo_root: Path) -> dict[str, Any]:
     """Parse a manifest file as JSON, raising ValidationError on failure."""
-    if not path.exists():
-        raise ValidationError(f"missing manifest: {path.relative_to(REPO_ROOT)}")
+    full_path = repo_root / path
+    if not full_path.exists():
+        raise ValidationError(f"missing manifest: {path}")
     try:
-        return json.loads(path.read_text())
+        loaded = json.loads(full_path.read_text())
     except json.JSONDecodeError as exc:
-        raise ValidationError(f"invalid JSON in {path.relative_to(REPO_ROOT)}: {exc}") from exc
+        raise ValidationError(f"invalid JSON in {path}: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise ValidationError(f"{path}: top-level JSON value must be an object")
+    return loaded
 
 
-def plugin_entry(marketplace: dict, plugin_name: str) -> dict:
+def required_field(manifest: dict[str, Any], field: str, path: Path) -> str:
+    """Read a required string field from a manifest, raising ValidationError if absent."""
+    value = manifest.get(field)
+    if not isinstance(value, str) or not value:
+        raise ValidationError(f"{path}: missing or empty required field '{field}'")
+    return value
+
+
+def plugin_entry(marketplace: dict[str, Any], plugin_name: str, path: Path) -> dict[str, Any]:
     """Find a plugin's entry inside a marketplace.json's plugins array."""
     for entry in marketplace.get("plugins", []):
-        if entry.get("name") == plugin_name:
+        if isinstance(entry, dict) and entry.get("name") == plugin_name:
             return entry
-    raise ValidationError(f"marketplace has no entry named '{plugin_name}'")
+    raise ValidationError(f"{path}: no plugins[] entry named '{plugin_name}'")
 
 
-def check_manifests_consistent() -> list[str]:
+def check_manifests_consistent(repo_root: Path) -> list[str]:
     """Verify all four manifests parse and agree on name and version."""
     findings: list[str] = []
-    manifests = {key: load_json(path) for key, path in MANIFESTS.items()}
+    manifests = {key: load_json(path, repo_root) for key, path in MANIFEST_PATHS.items()}
 
     cc_plugin = manifests["claude_plugin"]
-    cc_entry = plugin_entry(manifests["claude_marketplace"], cc_plugin["name"])
+    cc_name = required_field(cc_plugin, "name", MANIFEST_PATHS["claude_plugin"])
+    cc_entry = plugin_entry(
+        manifests["claude_marketplace"], cc_name, MANIFEST_PATHS["claude_marketplace"]
+    )
     cx_plugin = manifests["codex_plugin"]
-    cx_entry = plugin_entry(manifests["codex_marketplace"], cx_plugin["name"])
+    cx_name = required_field(cx_plugin, "name", MANIFEST_PATHS["codex_plugin"])
+    cx_entry = plugin_entry(
+        manifests["codex_marketplace"], cx_name, MANIFEST_PATHS["codex_marketplace"]
+    )
 
-    names = {cc_plugin.get("name"), cc_entry.get("name"), cx_plugin.get("name"), cx_entry.get("name")}
+    names = {cc_name, cc_entry.get("name"), cx_name, cx_entry.get("name")}
     if len(names) != 1:
-        findings.append(f"plugin name mismatch across manifests: {names}")
+        findings.append(f"plugin name mismatch across manifests: {sorted(str(n) for n in names)}")
 
     versions = {
-        cc_plugin.get("version"),
+        required_field(cc_plugin, "version", MANIFEST_PATHS["claude_plugin"]),
         cc_entry.get("version"),
-        cx_plugin.get("version"),
+        required_field(cx_plugin, "version", MANIFEST_PATHS["codex_plugin"]),
         cx_entry.get("version"),
     }
     if len(versions) != 1:
-        findings.append(f"plugin version mismatch across manifests: {versions}")
+        findings.append(
+            f"plugin version mismatch across manifests: {sorted(str(v) for v in versions)}"
+        )
 
     return findings
 
 
-def check_skill_frontmatter() -> list[str]:
+def _is_yaml_ish(line: str) -> bool:
+    """True when a line plausibly belongs inside a frontmatter block."""
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return True
+    if line.startswith((" ", "\t")):
+        return True  # continuation of a folded/indented value
+    key = line.partition(":")[0].strip()
+    return ":" in line and bool(key) and " " not in key
+
+
+def parse_frontmatter(text: str) -> dict[str, str] | None:
+    """Extract YAML-ish frontmatter as a flat key mapping, or None if malformed.
+
+    Line-based on purpose. The closing delimiter must be a line that is
+    exactly ``---`` (trailing whitespace allowed), AND every line between the
+    delimiters must plausibly be YAML (key/value, indented continuation,
+    comment, or blank). That second condition is what stops a never-closed
+    frontmatter from borrowing a markdown horizontal rule further down the
+    body as its "closing" delimiter: the prose between them fails the
+    YAML-ish test and the whole block is rejected as malformed.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].rstrip() != "---":
+        return None
+    for index, line in enumerate(lines[1:], start=1):
+        if line.rstrip() == "---":
+            block = lines[1:index]
+            if not all(_is_yaml_ish(raw) for raw in block):
+                return None
+            keys: dict[str, str] = {}
+            for position, raw in enumerate(block):
+                if ":" in raw and not raw.startswith((" ", "\t", "#")):
+                    key, _, value = raw.partition(":")
+                    value = value.strip()
+                    if value in {">", "|", ">-", "|-", ">+", "|+"}:
+                        continuation = []
+                        for follower in block[position + 1 :]:
+                            if follower.startswith((" ", "\t")):
+                                continuation.append(follower.strip())
+                            elif follower.strip():
+                                break
+                        value = " ".join(continuation)
+                    keys[key.strip()] = value
+            return keys
+    return None
+
+
+def check_skill_frontmatter(repo_root: Path) -> list[str]:
     """Verify every skills/*/SKILL.md has name + description frontmatter."""
     findings: list[str] = []
-    skills_dir = REPO_ROOT / "skills"
-    skill_files = sorted(skills_dir.glob("*/SKILL.md"))
+    skill_files = sorted((repo_root / "skills").glob("*/SKILL.md"))
     if not skill_files:
-        findings.append("no skills/*/SKILL.md files found")
-        return findings
+        return ["no skills/*/SKILL.md files found"]
 
     for skill_file in skill_files:
-        text = skill_file.read_text()
-        rel = skill_file.relative_to(REPO_ROOT)
-        if not text.startswith("---"):
-            findings.append(f"{rel}: missing opening frontmatter delimiter")
+        rel = skill_file.relative_to(repo_root)
+        frontmatter = parse_frontmatter(skill_file.read_text())
+        if frontmatter is None:
+            findings.append(f"{rel}: frontmatter missing or never closed with a '---' line")
             continue
-        end = text.find("\n---", 3)
-        if end == -1:
-            findings.append(f"{rel}: missing closing frontmatter delimiter")
-            continue
-        frontmatter = text[3:end]
-        if "name:" not in frontmatter:
-            findings.append(f"{rel}: frontmatter missing 'name'")
-        if "description:" not in frontmatter:
-            findings.append(f"{rel}: frontmatter missing 'description'")
+        for field in ("name", "description"):
+            if not frontmatter.get(field, "").strip():
+                findings.append(f"{rel}: frontmatter missing '{field}'")
 
     return findings
 
 
-def check_adr_exists() -> list[str]:
+def check_adr_exists(repo_root: Path) -> list[str]:
     """Sanity check: at least one ADR exists (this repo should never ship without one)."""
-    adr_dir = REPO_ROOT / "docs" / "architecture-decisions"
+    adr_dir = repo_root / "docs" / "architecture-decisions"
     if not adr_dir.exists() or not list(adr_dir.glob("*.md")):
         return ["no ADR found under docs/architecture-decisions/"]
     return []
 
 
-def main() -> int:
-    """Run all checks, print a PASS/FAIL report, return the process exit code."""
-    all_findings: list[str] = []
+def run_checks(repo_root: Path) -> list[str]:
+    """Run all checks against a repo root and return the combined findings."""
+    findings: list[str] = []
     for check in (check_manifests_consistent, check_skill_frontmatter, check_adr_exists):
         try:
-            all_findings.extend(check())
+            findings.extend(check(repo_root))
         except ValidationError as exc:
-            all_findings.append(str(exc))
+            findings.append(str(exc))
+    return findings
 
-    if all_findings:
+
+def main() -> int:
+    """Run all checks, print a PASS/FAIL report, return the process exit code."""
+    findings = run_checks(REPO_ROOT)
+
+    if findings:
         print("FAIL")
-        for finding in all_findings:
+        for finding in findings:
             print(f"  - {finding}")
         return 1
 
