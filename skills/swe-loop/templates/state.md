@@ -11,14 +11,14 @@ Lives in `~/.claude/swe-loops/<repo>/<slug>/` — never inside the repo.
 
 ## Phase checklist
 
-- [ ] 0 Design — ADR written, diagram renders, architecture doc updated
+- [ ] 0 Design — ADR written, diagram plan + dark/light evidence recorded, architecture doc updated
 - [ ] **GATE A — user approved design** (record date + wording)
 - [ ] 1 Plan — tasks defined (done-check + S/M class each); analyze check passed (ADR/EARS ↔ tasks coverage)
 - [ ] 2 Context — reuse inventory written (below)
 - [ ] 3 Implement — all tasks landed (committed / staged per mode), no unrelated churn, no mechanical+semantic mixing
 - [ ] 4 Test — test-plan.md written BEFORE tests; tests implemented
 - [ ] 5 Review — standards + correctness + zoom-out passes done, findings triaged
-- [ ] 6 Verify — full suite green, no drift from ADR
+- [ ] 6 Verify — full suite green, changed diagrams re-rendered/inspected, no drift from ADR
 - [ ] 7 Deliver — summary written (PR opened / pr-description.md per mode)
 - [ ] **GATE B — user approved** (PR or local diff; record date)
 - [ ] Close — memory/docs updated, loop done
@@ -30,6 +30,18 @@ Current task: <n of N> — <name>
 | # | Task | Class (S/M/generated) | Done-check | Status |
 |---|------|----------------------|-----------|--------|
 | 1 |      |                      |           |        |
+
+## Diagram evidence
+
+Record every Phase 0 design diagram and every diagram source changed after
+Gate A. Use `n/a` only with the guide's explicit trivial/code-level reason.
+
+| Artifact | Purpose | Archetype | Rendering mode | Source | Dark inspected | Light inspected | Self-check |
+|---|---|---|---|---|---|---|---|
+|   |       | structural / narrative | GitHub-native / icon | | | | |
+
+Gate A and Gate B approvals are recorded only in the phase checklist with the
+user's date and wording. CI, PR, commit, and artifact state never imply them.
 
 ## Reuse inventory (Phase 2)
 
