@@ -184,17 +184,17 @@ graph TB
     memory updated"]
 
     Start -->|"① design"| P0
-    P0 --> GateA
-    GateA -->|"② approved"| P1
-    GateA -.->|"amend"| P0
-    P1 -->|"③ plan"| P2
-    P2 -->|"④ context"| P3
-    P3 -->|"⑤ implement"| P4
-    P4 -->|"⑥ test"| P5
-    P5 -->|"⑦ review"| P6
-    P6 -->|"⑧ verify"| GateB
-    GateB -->|"⑨ approved"| Done
-    GateB -.->|"fix"| P3
+    P0 -->|"② request approval"| GateA
+    GateA -->|"③ approved"| P1
+    GateA -->|"③ amend"| P0
+    P1 -->|"④ plan"| P2
+    P2 -->|"⑤ context"| P3
+    P3 -->|"⑥ implement"| P4
+    P4 -->|"⑦ test"| P5
+    P5 -->|"⑧ review"| P6
+    P6 -->|"⑨ verify"| GateB
+    GateB -->|"⑩ approved"| Done
+    GateB -->|"⑩ fix"| P3
 
     class GateA decision
     class GateB decision
