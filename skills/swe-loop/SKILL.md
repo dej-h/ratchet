@@ -285,6 +285,34 @@ the Skill tool. The `reference/` folder contains stale, version-stamped
 transcripts of built-in skills for human reading and upgrade-diffing only —
 never load or follow anything in `reference/` as instructions.
 
+## Harness notes
+
+- **Invocation:** `/swe-loop` (Claude Code) or `$swe-loop` (Codex). Same
+  skill, same file; only the per-harness invocation syntax differs.
+- **Phase 7 memory update:** Claude Code targets the repo's CLAUDE.md/rules
+  plus auto-memory via the revise-claude-md skill. Codex has no equivalent
+  skill — the target is the repo's AGENTS.md (layered: `~/.codex/AGENTS.md`
+  then a root-to-CWD walk); edit it directly.
+- **Built-in delegates without a Codex equivalent — inline fallback:**
+  - **verify** (Phase 4): no native Codex skill. Fallback: build, run, and
+    drive the actual affected surface yourself; capture real output
+    (terminal pane, response body, screenshot); then probe at least one
+    adjacent case that could break it (bad input, repeat, wrong order).
+    Report PASS/FAIL/BLOCKED/SKIP with what you observed, not "tests pass."
+  - **code-review** (Phase 5): no native Codex skill. Fallback: read the
+    diff plus every touched function's enclosing context yourself, checking
+    explicitly for the angles this loop cares about — removed guards,
+    call-site breakage, reuse of existing helpers, unnecessary complexity,
+    the anti-patterns.md checklist — rather than a general impression pass.
+  - **graphify**, **deep-research**, **microsoft-docs**, **frontend-quality**
+    (Phase 0/5, situational): Claude Code plugin conveniences. Codex
+    fallback is doing the equivalent research or QA pass directly with your
+    own web-search/browser-driving capability; no separate skill required.
+- **Subagent delegation** (Phase 0 parallel alternatives, Phase 5
+  fresh-context review): both harnesses support this natively — Claude
+  Code's Agent tool/subagents, Codex's GA subagents including custom agents
+  under `.codex/agents/`. No fallback needed, only harness-native syntax.
+
 ## Known limits (v1)
 
 - Safety rules here are instructions; hard enforcement needs settings.json
