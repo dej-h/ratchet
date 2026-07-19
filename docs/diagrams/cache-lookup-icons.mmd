@@ -14,4 +14,13 @@ graph LR
     DNS -->|"③ resolve"| Server
     Server -->|"④ respond"| Page
 
+    class Cache decision
+    class Page success
+
+    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
+    classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
+    classDef protocol  fill:#fff3bf,stroke:#e8a400,color:#5c4500
+    classDef blocked   fill:#ffe3e3,stroke:#e03131,color:#5c1a1a
+    classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
+
     style lookup fill:#f4f1e8,stroke:#4a4438,stroke-width:3px
