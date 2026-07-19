@@ -21,7 +21,11 @@
         "path": "skills/swe-loop/mermaid-guide.md",
         "marker": "swe-loop"
       },
-      "evidence": []
+      "evidence": [],
+      "required_classes": [
+        "decision",
+        "success"
+      ]
     },
     {
       "id": "voortman-fullstack-review",
@@ -43,6 +47,13 @@
             "control-plane/src/control_plane/review/post_review_result.py"
           ]
         }
+      ],
+      "required_classes": [
+        "blocked",
+        "decision",
+        "protocol",
+        "success",
+        "transport"
       ]
     },
     {
@@ -55,6 +66,10 @@
         "marker": "cache-lookup-icons"
       },
       "evidence": [],
+      "required_classes": [
+        "decision",
+        "success"
+      ],
       "icon_packs": [
         "@iconify-json/mdi"
       ],
@@ -86,6 +101,13 @@
             "relay/_classify.py"
           ]
         }
+      ],
+      "required_classes": [
+        "blocked",
+        "decision",
+        "protocol",
+        "success",
+        "transport"
       ],
       "icon_packs": [
         "@iconify-json/logos",
