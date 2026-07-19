@@ -81,6 +81,7 @@ Adapted from the platform threat model — actors, stroke-only trust
 boundaries (theme-safe), protocol-labeled edges, cylinder datastore, dotted
 external calls:
 
+<!-- canonical-mermaid: platform-threat-model -->
 ```mermaid
 graph LR
     User(["👤 Browser User"])
@@ -159,6 +160,7 @@ agree, never conflict) and `success` for the terminal close. Nothing here
 is a network call or an in-flight protocol message, so `transport` and
 `protocol` are correctly unused, not forced in for variety:
 
+<!-- canonical-mermaid: swe-loop -->
 ```mermaid
 graph TB
     Start(["👤 Dejan"])
@@ -214,6 +216,60 @@ subgraph titles applies to node fills, with the fix being the opposite move
 (declare the color, don't omit it). Unclassed nodes (the six regular phase
 steps) use mermaid's own theme-adaptive default styling and need no
 explicit color at all — confirmed legible in both renders.
+
+### Canonical infrastructure example: automated full-stack review
+
+This example is grounded in `voortman-ai-sandbox/infrastructure` at commit
+`99baa4b2af97285cc50b3afaef4abe9bbd2ae12c`, specifically the relay,
+`review-listener.yml`, and deterministic result publisher. It shows the
+automated full-stack route only. Manual `workflow_dispatch` deliberately
+skips the branch-policy gate, so it is outside this scenario.
+
+Every palette class has a real job here: the webhook is transport; dispatch
+and pending status are protocol messages; relay, branch, security,
+full-stack, and AI decisions are gates; failed review is blocked; passing
+review is success. Source:
+[voortman-fullstack-review.mmd](../../docs/diagrams/voortman-fullstack-review.mmd).
+
+<!-- canonical-mermaid: voortman-fullstack-review -->
+```mermaid
+graph TB
+    Webhook["PR webhook"]
+    Relay{"Relay gate"}
+    Dispatch["Review dispatch"]
+    Pending["Pending status"]
+    Branch{"Branch gate"}
+    Security{"Security gate"}
+    FullStack{"Full-stack gate"}
+    Review{"AI review"}
+    Failed["Review failed"]
+    Passed["Review passed"]
+
+    Webhook -->|"① receive"| Relay
+    Relay -->|"② eligible"| Dispatch
+    Dispatch -->|"③ queue review"| Pending
+    Pending -->|"④ check policy"| Branch
+    Branch -->|"⑤ branch blocked"| Failed
+    Branch -->|"⑤ branch allowed"| Security
+    Security -->|"⑥ scans fail"| Failed
+    Security -->|"⑥ scans pass"| FullStack
+    FullStack -->|"⑦ verify fails"| Failed
+    FullStack -->|"⑦ verify passes"| Review
+    Review -->|"⑧ fail / human"| Failed
+    Review -->|"⑧ pass"| Passed
+
+    class Webhook transport
+    class Dispatch,Pending protocol
+    class Relay,Branch,Security,FullStack,Review decision
+    class Failed blocked
+    class Passed success
+
+    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
+    classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
+    classDef protocol  fill:#fff3bf,stroke:#e8a400,color:#5c4500
+    classDef blocked   fill:#ffe3e3,stroke:#e03131,color:#5c1a1a
+    classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
+```
 
 ## Rendering mode: icon track (render-and-commit)
 
@@ -296,9 +352,24 @@ demonstrating icons, a sticker-fill container, and the narrative rules
 above (numbered edges, micro-copy) together. Source:
 [cache-lookup-icons.mmd](../../docs/diagrams/cache-lookup-icons.mmd).
 
+<!-- canonical-mermaid: cache-lookup-icons -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../docs/diagrams/cache-lookup-icons-dark.svg">
   <img src="../../docs/diagrams/cache-lookup-icons-light.svg" alt="Browser icon connects through a numbered flow to a sticker-filled Cache Lookup container holding cache and DNS icons, then to a server icon, then to a checkmark loaded icon">
+</picture>
+
+**Canonical infrastructure icon example:** the fail-before-update full-stack
+deployment path from `voortman-ai-sandbox/infrastructure` at commit
+`99baa4b2af97285cc50b3afaef4abe9bbd2ae12c`. The exact tested SHA becomes a
+GHCR digest, that digest is imported into ACR without rebuilding, migrations
+run against the new digest while the current app image stays active, and the
+app rolls forward only after migration success. Source:
+[voortman-fullstack-deploy-icons.mmd](../../docs/diagrams/voortman-fullstack-deploy-icons.mmd).
+
+<!-- canonical-mermaid: voortman-fullstack-deploy-icons -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../docs/diagrams/voortman-fullstack-deploy-icons-dark.svg">
+  <img src="../../docs/diagrams/voortman-fullstack-deploy-icons-light.svg" alt="Numbered full-stack deployment flow from a GitHub main push through relay, tested digest, ACR import, migration and health gates to either failed or running status">
 </picture>
 
 Regeneration checked on 2026-07-20 with mermaid-cli 11.16.0: the committed
