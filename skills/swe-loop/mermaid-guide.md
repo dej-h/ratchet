@@ -9,6 +9,20 @@ and the mermaid docs (https://mermaid.js.org). Goal: diagrams that
 communicate structure at a glance — never five floating boxes with unlabeled
 arrows.
 
+## Two archetypes — pick one before drawing anything
+
+- **Structural** — what exists, and how it's grouped (systems, containers,
+  trust boundaries). Rules below in "Structural diagrams." This is the only
+  archetype ADR 001 covered.
+- **Narrative** — what happens, in order, as one process (a request's path
+  through a system, a workflow's phases). Rules in "Narrative diagrams."
+  Reach for this when the diagram's job is "follow this sequence," not
+  "understand this layout" — mixing the two modes in one canvas is exactly
+  what rule 1 below forbids.
+
+Both archetypes share the render-QA loop and the GitHub-safe syntax rule
+just below; nothing about rendering or shipping differs between them.
+
 ## Syntax: GitHub-safe only
 
 - Use **flowchart with `subgraph`** to express C4-style diagrams. Do NOT use
@@ -19,7 +33,7 @@ arrows.
   stateDiagram-v2, erDiagram all render fine
   (https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams).
 
-## Rules (all mandatory)
+## Structural diagrams — rules (all mandatory)
 
 1. **One abstraction level per diagram.** Context (system + users + external
    systems), container (deployable units + tech), or component (inside one
@@ -57,7 +71,7 @@ arrows.
     c4model.com) and trivial changes. A diagram that restates one sentence
     is noise.
 
-## Canonical example
+## Structural diagrams — canonical example
 
 Adapted from the platform threat model — actors, stroke-only trust
 boundaries (theme-safe), protocol-labeled edges, cylinder datastore, dotted
@@ -87,6 +101,106 @@ graph LR
     style web     fill:none,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4
     style private fill:none,stroke:#4a9970,stroke-width:2px,stroke-dasharray:7 4
 ```
+
+## Narrative diagrams
+
+For "what happens, in order" instead of "what exists." Grounded in a
+decomposition of ByteByteGo's system-design diagrams (blog.bytebytego.com,
+youtube.com/@ByteByteGo) — widely regarded as the clearest public example of
+this mode — split into what's pure convention (this section) versus what
+requires a render-and-commit image pipeline (icons, sticker fills; not
+covered here, see the icon-track addendum if this repo has one). Everything
+below renders natively in GitHub's inline mermaid, no extra tooling.
+
+### Rules (all mandatory)
+
+1. **Number every step on its edge label**, prefixed with a circled digit:
+   `A -->|"① check cache"| B`, `B -->|"② cache miss"| C`. This is what lets
+   layout zigzag freely — the reader follows the numbers, not the geometry.
+   Unicode circled digits (① U+2460 through ⑳ U+2473) render as plain text,
+   no icon dependency.
+2. **Semantic color has exactly one meaning per hue, fixed across every
+   narrative diagram in this repo** — not chosen per-diagram. Use these
+   `classDef`s (fill+stroke+explicit text color, so contrast holds in both
+   GitHub themes without per-theme images):
+   ```
+   classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
+   classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
+   classDef protocol  fill:#fff3bf,stroke:#e8a400,color:#5c4500
+   classDef blocked   fill:#ffe3e3,stroke:#e03131,color:#5c1a1a
+   classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
+   ```
+   success = completed/cache-hit · transport = data in transit/network call
+   · protocol = an in-flight message worth naming (e.g. a header, a status
+   code) · blocked = error/miss/failure path · decision = a gate or
+   data-at-rest point. Apply with `class NodeName success`. Never reuse a
+   hue for a second meaning in the same diagram — that is the one rule this
+   whole section exists to enforce.
+3. **Micro-copy: 1-3 words per node label.** Explanatory sentences belong in
+   the surrounding prose, never the canvas. Target the whole diagram under
+   roughly 100-120 words total (labels + edge annotations combined) — past
+   that, it is two diagrams pretending to be one; split it.
+4. Everything else — direction, node-count ceiling, edge-crossing
+   discipline, the render-QA loop, the self-check — is unchanged from the
+   structural rules above. A narrative diagram is a flowchart with these
+   four additional conventions layered on, not a different syntax.
+
+### Canonical example
+
+The swe-loop workflow's own 8 phases and 2 gates, as a narrative diagram —
+numbered steps, the fixed palette, micro-copy throughout:
+
+```mermaid
+graph TB
+    Start(["👤 Dejan"])
+    P0["① Design
+    ADR + options"]
+    GateA{"② Gate A
+    approve?"}
+    P1["③ Plan
+    tasks + budget"]
+    P2["④ Context
+    reuse check"]
+    P3["⑤ Implement
+    one task/commit"]
+    P4["⑥ Test
+    plan, then tests"]
+    P5["⑦ Review
+    fresh context"]
+    P6["⑧ Verify
+    vs ADR"]
+    GateB{"⑨ Gate B
+    approve?"}
+    Done["⑩ Closed
+    memory updated"]
+
+    Start --> P0 --> GateA
+    GateA -->|"yes"| P1
+    GateA -.->|"no: amend"| P0
+    P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> GateB
+    GateB -->|"yes"| Done
+    GateB -.->|"no: fix"| P3
+
+    class P0 decision
+    class GateA decision
+    class P3 transport
+    class P5 protocol
+    class GateB decision
+    class Done success
+    class P6 success
+
+    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
+    classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
+    classDef protocol  fill:#fff3bf,stroke:#e8a400,color:#5c4500
+    classDef blocked   fill:#ffe3e3,stroke:#e03131,color:#5c1a1a
+    classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
+```
+
+Passed render QA (dark + light, mermaid-cli) before shipping: node text
+stays legible in both themes because color is set explicitly per class
+rather than left to theme defaults — the same lesson ADR 001 learned about
+subgraph titles applies to node fills, with the fix being the opposite
+move (declare the color, don't omit it).
 
 ## Render QA — mandatory for every new or changed diagram
 
