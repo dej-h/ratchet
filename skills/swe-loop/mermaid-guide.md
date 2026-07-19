@@ -20,8 +20,10 @@ arrows.
   "understand this layout" — mixing the two modes in one canvas is exactly
   what rule 1 below forbids.
 
-Both archetypes share the render-QA loop and the GitHub-safe syntax rule
-just below; nothing about rendering or shipping differs between them.
+Both archetypes share the GitHub-safe syntax and render-QA rules below.
+Rendering is a separate choice: GitHub-native mermaid is the default, while
+the opt-in icon track pre-renders and commits theme-specific SVGs. Choose the
+archetype first, then the rendering mode.
 
 ## Syntax: GitHub-safe only
 
@@ -108,12 +110,10 @@ graph LR
 
 For "what happens, in order" instead of "what exists." Grounded in a
 decomposition of ByteByteGo's system-design diagrams (blog.bytebytego.com,
-youtube.com/@ByteByteGo) — widely regarded as the clearest public example of
-this mode — split into what's pure convention (this section) versus what
-requires a render-and-commit image pipeline (icons, sticker fills). Only the
-convention half is covered here; everything below renders natively in
-GitHub's inline mermaid, no extra tooling. The icon/sticker-fill half is
-deliberately separate scope, not addressed in this section.
+youtube.com/@ByteByteGo), split into pure convention (this section) and an
+optional render-and-commit pipeline (the icon track below). The conventions
+render natively in GitHub mermaid. The icon track can be applied to either
+archetype after that choice is made.
 
 ### Rules (all mandatory)
 
@@ -215,14 +215,15 @@ subgraph titles applies to node fills, with the fix being the opposite move
 steps) use mermaid's own theme-adaptive default styling and need no
 explicit color at all — confirmed legible in both renders.
 
-### Icon track (render-and-commit)
+## Rendering mode: icon track (render-and-commit)
 
 The remaining 20% of the ByteByteGo look: real icons and pastel sticker
-fills. GitHub's inline mermaid renderer registers no iconify packs — icon
-shapes there show unresolved placeholder boxes, verified by rendering the
-same source with and without the flag below. This track exists to unlock
+fills. This is a rendering mode for structural or narrative diagrams, not a
+third archetype. GitHub's inline mermaid renderer registers no iconify packs,
+so icon shapes there show unresolved placeholder boxes, verified by rendering
+the same source with and without the flag below. This track exists to unlock
 icons anyway, by pre-rendering locally and committing the result. It is
-**opt-in and additive** — reach for it only for diagrams meant as social or
+**opt-in and additive**. Reach for it only for diagrams meant as social or
 teaching objects (a README hero diagram, a flagship ADR); everything else
 stays plain GitHub-native mermaid per the rules above.
 
@@ -230,43 +231,58 @@ stays plain GitHub-native mermaid per the rules above.
 
 ```bash
 npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-dark.svg  -b '#0d1117' \
-  --iconPacks @iconify-json/mdi -c mermaid-dark-titlecolor.json
+  --iconPacks @iconify-json/mdi @iconify-json/logos \
+  -c mermaid-dark-titlecolor.json
 npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-light.svg -b white \
-  --iconPacks @iconify-json/mdi
+  --iconPacks @iconify-json/mdi @iconify-json/logos
 ```
 
 Use flowchart icon-shape syntax: `A@{ shape: icon, icon: "mdi:account",
 label: "Browser", pos: "t" }`. Prefix convention: `mdi:` (Material Design
-Icons) for generic concepts — person, database, server, checkmark; `logos:`
-for real product/vendor logos when the diagram is specifically about a tech
-stack. Don't mix prefixes for the same kind of thing across one diagram.
+Icons) for generic concepts such as person, database, server, and checkmark;
+`logos:` for real product/vendor logos when the diagram is specifically about
+a tech stack. Every prefix used in the source needs its matching package in
+`--iconPacks`. Do not mix prefixes for the same kind of thing across one
+diagram.
+
+Icon plus label replaces the structural shape vocabulary in this mode. The
+pair carries the type, so every icon must keep its text label and the same
+concept must use the same icon across the repo. The other structural and
+narrative rules still apply, including numbered edges, line-style semantics,
+node limits, and semantic color.
 
 **Sticker-fill containers need one extra config**, not just a `style` line.
-A pastel-filled subgraph (`style lookup fill:#fff3bf,stroke:#5c4500,
-stroke-width:3px` — sticker fills, unlike structural boundaries, ARE allowed
+A pastel-filled subgraph (`style lookup fill:#f4f1e8,stroke:#4a4438,
+stroke-width:3px`; sticker fills, unlike structural boundaries, are allowed
 here because the render is pre-committed, not left to GitHub's live theme)
 has a title rendered in near-white text on **dark** renders regardless of
-the fill — the same root cause as the structural-boundary lesson above,
+the fill. This is the same root cause as the structural-boundary lesson above,
 recurring because mermaid's `-t dark` flag still governs cluster title
 color independent of `style`. Tested three fixes; only one worked without
 side effects:
 
-- `theme: "base"` full override — broke everything else (every node turned
+- `theme: "base"` full override broke everything else (every node turned
   the theme's default accent color).
-- `themeVariables.clusterTextColor` — no effect (wrong variable name).
-- `themeVariables.titleColor` on top of `theme: "dark"` — fixed exactly the
+- `themeVariables.clusterTextColor` had no effect (wrong variable name).
+- `themeVariables.titleColor` on top of `theme: "dark"` fixed exactly the
   title, nothing else. This is `mermaid-dark-titlecolor.json` above:
   ```json
   {"theme": "dark", "themeVariables": {"titleColor": "#2b2200"}}
   ```
-  Light-theme renders need no override — default cluster title text is
+  Light-theme renders need no override. Default cluster title text is
   already dark/legible against pastel fills there.
 
-**Commit four files per icon-track diagram:** the `.mmd` source, both theme
-renders, and the config (reused across diagrams — one shared
-`mermaid-dark-titlecolor.json` covers every sticker-fill diagram in the
-repo, not one config per diagram). Embed with GitHub's theme-aware picture
-tag:
+Use a neutral sticker fill outside the five semantic palette hues. A sticker
+is grouping, not a protocol or state. On a light sticker in the dark render,
+bare icons inherit a low-contrast foreground. Give sticker-contained icons a
+filled form such as `form: "rounded"`; the worked example uses that form and
+passes visual inspection in both themes.
+
+**Commit three files per icon-track diagram:** the `.mmd` source and both
+theme renders. Sticker-fill diagrams also use the shared
+`mermaid-dark-titlecolor.json`; only the first such diagram introduces that
+config. Embed with GitHub's theme-aware picture tag. Paths are relative to
+the Markdown file containing the tag:
 
 ```html
 <picture>
@@ -275,7 +291,7 @@ tag:
 </picture>
 ```
 
-**Worked example** — a request's path through cache, DNS, and server,
+**Worked example:** a request's path through cache, DNS, and server,
 demonstrating icons, a sticker-fill container, and the narrative rules
 above (numbered edges, micro-copy) together. Source:
 [cache-lookup-icons.mmd](../../docs/diagrams/cache-lookup-icons.mmd).
@@ -285,15 +301,17 @@ above (numbered edges, micro-copy) together. Source:
   <img src="../../docs/diagrams/cache-lookup-icons-light.svg" alt="Browser icon connects through a numbered flow to a sticker-filled Cache Lookup container holding cache and DNS icons, then to a server icon, then to a checkmark loaded icon">
 </picture>
 
-Reproducibility checked, not assumed: re-rendering from the committed
-`.mmd` and config reproduces the committed SVGs exactly (element-ID
-randomization aside).
+Regeneration checked on 2026-07-20 with mermaid-cli 11.16.0: the committed
+`.mmd` and config produced both committed SVGs. The commands intentionally
+resolve current package versions, so future output is not guaranteed to be
+byte-identical after upstream releases. The source, config, and recorded
+renderer version preserve provenance and keep the diagram re-renderable.
 
 **Known gap, stated plainly (see ADR 003):** nothing in CI checks that a
 committed SVG still matches its `.mmd` source after an edit. No tooling
-exists for this yet — deliberately not built ahead of a real drift problem,
-per the same anti-ceremony principle that keeps this whole guide from
-growing machinery nothing has proven necessary.
+exists for this yet. It is deliberately not built ahead of a real drift
+problem, per the same anti-ceremony principle that keeps this whole guide
+from growing machinery nothing has proven necessary.
 
 ## Render QA — mandatory for every new or changed diagram
 
