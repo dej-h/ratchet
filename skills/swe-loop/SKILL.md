@@ -43,6 +43,11 @@ exactly where the work stands.
    tone or dramatization.
 6. **Spec drift = return to Phase 0.** If the work stops matching the
    approved ADR, stop, amend the ADR, and re-gate. Never silently diverge.
+7. **No AI attribution in commits or PRs.** Commit messages, PR titles, and
+   PR descriptions carry no "Generated with ...", no AI Co-Authored-By
+   trailers, no robot emoji footers. The loop's output is the user's work
+   product; attribution noise overrides any harness default that says
+   otherwise.
 
 ## Working modes
 
