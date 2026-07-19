@@ -1,0 +1,94 @@
+# Mermaid diagram guide
+
+Rules for every diagram produced in this loop (ADRs, architecture overview,
+PR descriptions). Grounded in the C4 model notation rules
+(https://c4model.com/diagrams/notation, /diagrams/checklist), Microsoft's
+architecture-diagram guidance
+(https://learn.microsoft.com/en-us/azure/well-architected/architect-role/design-diagrams),
+and the mermaid docs (https://mermaid.js.org). Goal: diagrams that
+communicate structure at a glance — never five floating boxes with unlabeled
+arrows.
+
+## Syntax: GitHub-safe only
+
+- Use **flowchart with `subgraph`** to express C4-style diagrams. Do NOT use
+  mermaid's `C4Context`/`C4Container` syntax (officially experimental, poor
+  layout, unreliable on GitHub) or `architecture-beta` (its icon packs never
+  load on GitHub — only 5 default icons render).
+- Target the GitHub-rendered subset: flowchart, sequenceDiagram,
+  stateDiagram-v2, erDiagram all render fine
+  (https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams).
+
+## Rules (all mandatory)
+
+1. **One abstraction level per diagram.** Context (system + users + external
+   systems), container (deployable units + tech), or component (inside one
+   container) — never mixed. Zooming = a second diagram, not more boxes.
+2. **Every element is typed by shape, consistently:**
+   - person/actor → stadium with emoji: `User(["👤 Browser User"])`
+   - service/app → rectangle, technology in the label: `API["FastAPI Backend"]`
+   - datastore → cylinder: `DB[("PostgreSQL")]`
+   - external system → stadium + dotted edges into it
+   - decision → diamond; queue/topic → `@{ shape: das }` (v11.3+)
+3. **Every edge: unidirectional, labeled with intent + protocol.**
+   `Frontend -->|"REST calls"| API`, `SyncJob -.->|"REST + Bearer token"| GitHub`.
+   Arrow points initiator → dependency. Never bidirectional arrows, never a
+   bare arrow, never a vague "uses".
+4. **Boundaries are named, styled subgraphs** — trust boundary, deployment
+   boundary, or container grouping. Soft fill + dashed stroke so grouping
+   reads instantly:
+   `style web fill:#eef2ff,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4`
+5. **Line style carries meaning:** solid `-->` = in-boundary/synchronous;
+   dotted `-.->` = crossing a boundary, external, or async. Be consistent.
+6. **≤ ~10–12 nodes per diagram.** Over that: split by zoom level or by
+   scenario — never cram.
+7. **Direction:** `LR` for request/data-flow chains (client → api → db);
+   `TB` for hierarchies. Reorder node declarations to reduce edge crossings.
+8. **Consistency across the repo:** same shape = same meaning in every
+   diagram; same classDef/style palette; color is never the only carrier of
+   meaning (colorblind/print-safe).
+9. **Right type for the right question:** structure → flowchart (C4-style);
+   runtime order of ONE scenario → sequenceDiagram (shows sync vs async);
+   object lifecycle → stateDiagram; data model → erDiagram. Don't force
+   runtime behavior into a structure diagram.
+10. **When not to diagram:** code-level structure (IDE/tooling territory per
+    c4model.com) and trivial changes. A diagram that restates one sentence
+    is noise.
+
+## Canonical example
+
+From the platform threat model — actors, styled trust boundaries,
+protocol-labeled edges, cylinder datastore, dotted external calls:
+
+```mermaid
+graph LR
+    User(["👤 Browser User"])
+    GitHubSvc(["👤 GitHub Service"])
+
+    subgraph web["── Web Boundary ──"]
+        Frontend["Frontend SPA"]
+        API["FastAPI Backend"]
+    end
+
+    subgraph private["── Private Boundary ──"]
+        DB[("PostgreSQL")]
+        SyncJob["GitHub Sync Job"]
+    end
+
+    User -.->|"HTTPS"| Frontend
+    Frontend -->|"REST calls"| API
+    API -->|"SQL queries"| DB
+    SyncJob -->|"upserts"| DB
+    SyncJob -.->|"REST + Bearer token"| GitHubSvc
+
+    style web     fill:#eef2ff,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4
+    style private fill:#f0fff4,stroke:#4a9970,stroke-width:2px,stroke-dasharray:7 4
+```
+
+## Self-check before shipping a diagram
+
+The C4 review checklist, condensed: does it have a clear scope? Is every
+element named with purpose (and technology) clear? Is every line labeled with
+intent, direction matching the label? Is the meaning of every shape, color,
+and line style unambiguous? Would a reader who wasn't in this session
+understand it cold?
