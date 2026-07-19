@@ -8,6 +8,8 @@
   "interface": {
     "displayName": "Ratchet",
     "category": "productivity",
-    "defaultPrompt": "Use the swe-loop skill to run a phase-gated SWE workflow."
+    "defaultPrompt": [
+      "Use the swe-loop skill to run a phase-gated SWE workflow for this change."
+    ]
   }
 }
