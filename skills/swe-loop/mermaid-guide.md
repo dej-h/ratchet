@@ -33,7 +33,9 @@ just below; nothing about rendering or shipping differs between them.
   stateDiagram-v2, erDiagram all render fine
   (https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams).
 
-## Structural diagrams — rules (all mandatory)
+## Structural diagrams
+
+### Rules (all mandatory)
 
 1. **One abstraction level per diagram.** Context (system + users + external
    systems), container (deployable units + tech), or component (inside one
@@ -71,7 +73,7 @@ just below; nothing about rendering or shipping differs between them.
     c4model.com) and trivial changes. A diagram that restates one sentence
     is noise.
 
-## Structural diagrams — canonical example
+### Canonical example
 
 Adapted from the platform threat model — actors, stroke-only trust
 boundaries (theme-safe), protocol-labeled edges, cylinder datastore, dotted
@@ -108,9 +110,10 @@ For "what happens, in order" instead of "what exists." Grounded in a
 decomposition of ByteByteGo's system-design diagrams (blog.bytebytego.com,
 youtube.com/@ByteByteGo) — widely regarded as the clearest public example of
 this mode — split into what's pure convention (this section) versus what
-requires a render-and-commit image pipeline (icons, sticker fills; not
-covered here, see the icon-track addendum if this repo has one). Everything
-below renders natively in GitHub's inline mermaid, no extra tooling.
+requires a render-and-commit image pipeline (icons, sticker fills). Only the
+convention half is covered here; everything below renders natively in
+GitHub's inline mermaid, no extra tooling. The icon/sticker-fill half is
+deliberately separate scope, not addressed in this section.
 
 ### Rules (all mandatory)
 
@@ -120,22 +123,23 @@ below renders natively in GitHub's inline mermaid, no extra tooling.
    Unicode circled digits (① U+2460 through ⑳ U+2473) render as plain text,
    no icon dependency.
 2. **Semantic color has exactly one meaning per hue, fixed across every
-   narrative diagram in this repo** — not chosen per-diagram. Use these
-   `classDef`s (fill+stroke+explicit text color, so contrast holds in both
-   GitHub themes without per-theme images):
-   ```
-   classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
-   classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
-   classDef protocol  fill:#fff3bf,stroke:#e8a400,color:#5c4500
-   classDef blocked   fill:#ffe3e3,stroke:#e03131,color:#5c1a1a
-   classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
-   ```
-   success = completed/cache-hit · transport = data in transit/network call
-   · protocol = an in-flight message worth naming (e.g. a header, a status
-   code) · blocked = error/miss/failure path · decision = a gate or
-   data-at-rest point. Apply with `class NodeName success`. Never reuse a
-   hue for a second meaning in the same diagram — that is the one rule this
-   whole section exists to enforce.
+   narrative diagram in this repo** — not chosen per-diagram, and never
+   applied to a node it doesn't actually describe just for visual variety:
+
+   | Class | Meaning | classDef |
+   |---|---|---|
+   | `success` | completed / cache-hit | `fill:#d3f9d8,stroke:#2f9e44,color:#1a3620` |
+   | `transport` | data in transit / network call | `fill:#d0ebff,stroke:#1971c2,color:#0b3866` |
+   | `protocol` | an in-flight message worth naming (header, status code) | `fill:#fff3bf,stroke:#e8a400,color:#5c4500` |
+   | `blocked` | error / miss / failure path | `fill:#ffe3e3,stroke:#e03131,color:#5c1a1a` |
+   | `decision` | a gate or data-at-rest point | `fill:#e5dbff,stroke:#7048e8,color:#2c1a5c` |
+
+   All five `classDef`s set fill+stroke+explicit text color, so contrast
+   holds in both GitHub themes without per-theme images. Apply with
+   `class NodeName success`. A diagram whose domain has no network calls or
+   protocol messages simply doesn't use those two classes — leaving a class
+   unused is correct; misapplying one to a node it doesn't describe, purely
+   for variety, is the one thing this rule forbids.
 3. **Micro-copy: 1-3 words per node label.** Explanatory sentences belong in
    the surrounding prose, never the canvas. Target the whole diagram under
    roughly 100-120 words total (labels + edge annotations combined) — past
@@ -148,46 +152,53 @@ below renders natively in GitHub's inline mermaid, no extra tooling.
 ### Canonical example
 
 The swe-loop workflow's own 8 phases and 2 gates, as a narrative diagram —
-numbered steps, the fixed palette, micro-copy throughout:
+numbered edges (rule 1), micro-copy (rule 3), and only the palette classes
+this domain actually has: `decision` for the two gates (reinforcing the
+diamond shape already required by the structural rules — shape and color
+agree, never conflict) and `success` for the terminal close. Nothing here
+is a network call or an in-flight protocol message, so `transport` and
+`protocol` are correctly unused, not forced in for variety:
 
 ```mermaid
 graph TB
     Start(["👤 Dejan"])
-    P0["① Design
+    P0["Design
     ADR + options"]
-    GateA{"② Gate A
+    GateA{"Gate A
     approve?"}
-    P1["③ Plan
+    P1["Plan
     tasks + budget"]
-    P2["④ Context
+    P2["Context
     reuse check"]
-    P3["⑤ Implement
+    P3["Implement
     one task/commit"]
-    P4["⑥ Test
-    plan, then tests"]
-    P5["⑦ Review
+    P4["Test
+    plan first"]
+    P5["Review
     fresh context"]
-    P6["⑧ Verify
+    P6["Verify
     vs ADR"]
-    GateB{"⑨ Gate B
+    GateB{"Gate B
     approve?"}
-    Done["⑩ Closed
+    Done["Closed
     memory updated"]
 
-    Start --> P0 --> GateA
-    GateA -->|"yes"| P1
-    GateA -.->|"no: amend"| P0
-    P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> GateB
-    GateB -->|"yes"| Done
-    GateB -.->|"no: fix"| P3
+    Start -->|"① design"| P0
+    P0 --> GateA
+    GateA -->|"② approved"| P1
+    GateA -.->|"amend"| P0
+    P1 -->|"③ plan"| P2
+    P2 -->|"④ context"| P3
+    P3 -->|"⑤ implement"| P4
+    P4 -->|"⑥ test"| P5
+    P5 -->|"⑦ review"| P6
+    P6 -->|"⑧ verify"| GateB
+    GateB -->|"⑨ approved"| Done
+    GateB -.->|"fix"| P3
 
-    class P0 decision
     class GateA decision
-    class P3 transport
-    class P5 protocol
     class GateB decision
     class Done success
-    class P6 success
 
     classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
     classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
@@ -199,8 +210,10 @@ graph TB
 Passed render QA (dark + light, mermaid-cli) before shipping: node text
 stays legible in both themes because color is set explicitly per class
 rather than left to theme defaults — the same lesson ADR 001 learned about
-subgraph titles applies to node fills, with the fix being the opposite
-move (declare the color, don't omit it).
+subgraph titles applies to node fills, with the fix being the opposite move
+(declare the color, don't omit it). Unclassed nodes (the six regular phase
+steps) use mermaid's own theme-adaptive default styling and need no
+explicit color at all — confirmed legible in both renders.
 
 ## Render QA — mandatory for every new or changed diagram
 
