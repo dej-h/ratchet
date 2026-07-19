@@ -1,0 +1,22 @@
+graph LR
+    User(["👤 Browser User"])
+    GitHubSvc(["👤 GitHub Service"])
+
+    subgraph web["Web Boundary"]
+        Frontend["Frontend SPA"]
+        API["FastAPI Backend"]
+    end
+
+    subgraph private["Private Boundary"]
+        DB[("PostgreSQL")]
+        SyncJob["GitHub Sync Job"]
+    end
+
+    User -.->|"HTTPS"| Frontend
+    Frontend -->|"REST calls"| API
+    API -->|"SQL queries"| DB
+    SyncJob -->|"upserts"| DB
+    SyncJob -.->|"REST + Bearer token"| GitHubSvc
+
+    style web     fill:none,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4
+    style private fill:none,stroke:#4a9970,stroke-width:2px,stroke-dasharray:7 4
