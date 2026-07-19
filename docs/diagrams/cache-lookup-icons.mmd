@@ -1,0 +1,17 @@
+graph LR
+    User@{ shape: icon, icon: "mdi:account", label: "Browser", pos: "t" }
+
+    subgraph lookup["Cache Lookup"]
+        Cache@{ shape: icon, icon: "mdi:cached", label: "Cache", pos: "t" }
+        DNS@{ shape: icon, icon: "mdi:web", label: "DNS", pos: "t" }
+    end
+
+    Server@{ shape: icon, icon: "mdi:server", label: "Server", pos: "t" }
+    Page@{ shape: icon, icon: "mdi:check-circle", label: "Loaded", pos: "t" }
+
+    User -->|"① request"| Cache
+    Cache -.->|"② miss"| DNS
+    DNS -->|"③ resolve"| Server
+    Server -->|"④ respond"| Page
+
+    style lookup fill:#fff3bf,stroke:#5c4500,stroke-width:3px
