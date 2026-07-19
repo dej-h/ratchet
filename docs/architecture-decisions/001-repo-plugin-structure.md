@@ -105,40 +105,46 @@ complexity against a documented anti-pattern (ceremony that never fires).
 ## Feature overview
 
 ```mermaid
-graph TB
+graph LR
     Dev(["👤 Dejan"])
 
-    subgraph repo["── github.com/dej-h/ratchet (private) ──"]
-        Skills["skills/ tree
-        (swe-loop, write-as-dejan)"]
+    subgraph repo["github.com/dej-h/ratchet"]
+        direction TB
+        CI["CI validator
+        (tools/validate.py + pytest)"]
         ClaudeManifest[".claude-plugin/
         plugin.json + marketplace.json"]
         CodexManifest[".codex-plugin/ + .agents/plugins/
         plugin.json + marketplace.json"]
-        CI["CI validator (Python/uv)"]
+        Skills["skills/
+        swe-loop + write-as-dejan"]
     end
 
-    subgraph cc["── Claude Code ──"]
-        CCPlugin["Installed plugin"]
+    subgraph cc["Claude Code"]
+        CCPlugin["installed plugin"]
     end
 
-    subgraph cx["── Codex ──"]
-        CXPlugin["Installed plugin"]
+    subgraph cx["Codex"]
+        CXPlugin["installed plugin"]
     end
 
-    Dev -->|"git push"| repo
-    CI -.->|"validates on push"| repo
-    Dev -->|"/plugin marketplace add"| ClaudeManifest
-    Dev -->|"codex plugin marketplace add"| CodexManifest
-    ClaudeManifest -->|"reads"| Skills
-    CodexManifest -->|"reads"| Skills
-    ClaudeManifest --> CCPlugin
-    CodexManifest --> CXPlugin
+    Dev -->|"push / PR"| CI
+    CI -.->|"validates"| ClaudeManifest
+    CI -.->|"validates"| CodexManifest
+    ClaudeManifest -->|"packages"| Skills
+    CodexManifest -->|"packages"| Skills
+    ClaudeManifest -->|"claude plugin install"| CCPlugin
+    CodexManifest -->|"codex plugin install"| CXPlugin
 
-    style repo fill:#eef2ff,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4
-    style cc   fill:#f0fff4,stroke:#4a9970,stroke-width:2px,stroke-dasharray:7 4
-    style cx   fill:#fff7ed,stroke:#c2822a,stroke-width:2px,stroke-dasharray:7 4
+    style repo fill:none,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4
+    style cc   fill:none,stroke:#4a9970,stroke-width:2px,stroke-dasharray:7 4
+    style cx   fill:none,stroke:#c2822a,stroke-width:2px,stroke-dasharray:7 4
 ```
+
+Diagram passed render QA per mermaid-guide.md: rendered with mermaid-cli in
+dark (`-t dark -b '#0d1117'`) and light themes, inspected, and iterated. The
+first version used pastel boundary fills that made subgraph titles unreadable
+on GitHub's dark theme; boundaries are now stroke-only.
 
 No overall `docs/architecture.md` yet: this loop establishes the
 architecture rather than changing an existing one, so this ADR's diagram

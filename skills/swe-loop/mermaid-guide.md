@@ -35,9 +35,11 @@ arrows.
    Arrow points initiator → dependency. Never bidirectional arrows, never a
    bare arrow, never a vague "uses".
 4. **Boundaries are named, styled subgraphs** — trust boundary, deployment
-   boundary, or container grouping. Soft fill + dashed stroke so grouping
-   reads instantly:
-   `style web fill:#eef2ff,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4`
+   boundary, or container grouping. Dashed stroke, **never a fill**:
+   `style web fill:none,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4`
+   Hard-coded light fills are a proven failure: GitHub's dark theme renders
+   subgraph titles in near-white text, which disappears against a pastel
+   fill. Stroke-only boundaries stay legible in both themes.
 5. **Line style carries meaning:** solid `-->` = in-boundary/synchronous;
    dotted `-.->` = crossing a boundary, external, or async. Be consistent.
 6. **≤ ~10–12 nodes per diagram.** Over that: split by zoom level or by
@@ -57,20 +59,21 @@ arrows.
 
 ## Canonical example
 
-From the platform threat model — actors, styled trust boundaries,
-protocol-labeled edges, cylinder datastore, dotted external calls:
+Adapted from the platform threat model — actors, stroke-only trust
+boundaries (theme-safe), protocol-labeled edges, cylinder datastore, dotted
+external calls:
 
 ```mermaid
 graph LR
     User(["👤 Browser User"])
     GitHubSvc(["👤 GitHub Service"])
 
-    subgraph web["── Web Boundary ──"]
+    subgraph web["Web Boundary"]
         Frontend["Frontend SPA"]
         API["FastAPI Backend"]
     end
 
-    subgraph private["── Private Boundary ──"]
+    subgraph private["Private Boundary"]
         DB[("PostgreSQL")]
         SyncJob["GitHub Sync Job"]
     end
@@ -81,9 +84,39 @@ graph LR
     SyncJob -->|"upserts"| DB
     SyncJob -.->|"REST + Bearer token"| GitHubSvc
 
-    style web     fill:#eef2ff,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4
-    style private fill:#f0fff4,stroke:#4a9970,stroke-width:2px,stroke-dasharray:7 4
+    style web     fill:none,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4
+    style private fill:none,stroke:#4a9970,stroke-width:2px,stroke-dasharray:7 4
 ```
+
+## Render QA — mandatory for every new or changed diagram
+
+Never ship a diagram you have only read as source. Render it, look at the
+pixels, fix what you see, re-render — the same discipline Playwright QA
+applies to frontends. Syntax that parses can still render illegibly (title
+washout, label-on-node overlap, clipped text at canvas edges, long crossing
+edges), and none of that is visible in the source text.
+
+```bash
+npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-dark.png  -t dark -b '#0d1117'
+npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-light.png -b white
+```
+
+(First run downloads a headless browser; cached afterward, renders take
+seconds.)
+
+Inspect BOTH images and check:
+
+1. Every subgraph title and edge label legible in the dark render — title
+   washout on dark is the most common failure.
+2. No edge label sitting on top of a node; no text clipped at a canvas edge.
+3. Edges traceable: no long crossings, no edge whose origin box is
+   ambiguous. Reorder node/subgraph declarations to fix routing.
+4. The actor/initiator sits where the flow starts reading (left in LR, top
+   in TB), not floating at the far edge.
+
+Fix, re-render, repeat until every point passes; then run the self-check
+below on the final render. GitHub's exact theme differs slightly from
+mermaid-cli's, but every failure listed above reproduces in both.
 
 ## Self-check before shipping a diagram
 
