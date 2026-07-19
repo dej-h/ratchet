@@ -1,0 +1,19 @@
+{
+  "name": "ratchet",
+  "owner": {
+    "name": "Dejan Honderd",
+    "url": "https://github.com/dej-h"
+  },
+  "metadata": {
+    "description": "Phase-gated SWE workflow for coding agents, self-hosted as a single-plugin marketplace."
+  },
+  "plugins": [
+    {
+      "name": "ratchet",
+      "description": "Phase-gated SWE workflow: ADR-first design, review-effort-budgeted tasks, reuse inventory, test-plan-before-tests, fresh-context review, drift-checked delivery. Includes the write-as-dejan writing-voice skill.",
+      "source": "./",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}

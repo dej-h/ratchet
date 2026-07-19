@@ -1,0 +1,326 @@
+---
+name: swe-loop
+description: >
+  Dejan's disciplined SWE loop for any change that ends in a commit or PR —
+  features, bugfixes, migrations, refactors. Enforces phase gates (ADR before
+  code, reuse inventory before implementation, test plan before tests,
+  fresh-context review, verification against design) with exactly two human
+  checkpoints. Use at the start of any substantive implementation task, when
+  resuming one, or when invoked as /swe-loop. Not for pure Q&A, exploration,
+  or doc-only edits.
+---
+
+# swe-loop
+
+Operating principle: an expert does all the basics well, every time. This loop
+exists so discipline does not depend on session memory, context freshness, or
+mood. The phases are invariant; the checks inside them vary per profile (see
+Profiles). Progress must always be legible: anyone opening the state file knows
+exactly where the work stands.
+
+## Non-negotiables (every phase)
+
+1. **State file is the source of truth.** Read it before doing anything;
+   update it at every phase transition. Never rely on conversation history to
+   know where the loop stands.
+2. **Two human gates only.** Gate A = design approval (end of Phase 0).
+   Gate B = delivery review (Phase 7). Never pass a gate without the user
+   explicitly approving in the conversation. Everything between gates is
+   self-checked via boundaries below — do not ask for permission mid-loop
+   unless genuinely blocked.
+3. **No irreversible or production-affecting commands.** No deploys,
+   `terraform apply`/`destroy`, `az` mutations on shared resources,
+   force-pushes, or non-local DB changes — local dev is the sandbox. If a
+   phase appears to need one, stop and ask. (Hard enforcement belongs in
+   settings.json deny rules; this skill is the instruction layer, not the
+   only defense.)
+4. **Dependencies are never hand-pinned.** Add or upgrade only via resolver
+   commands (`uv add <pkg>`, `npm install <pkg>`) so the registry — not model
+   memory — picks the version. When writing code against a library, verify
+   current API from its docs, never from internal knowledge alone.
+5. **Prose artifacts use the write-as-dejan skill** (ADRs, summaries, PR
+   descriptions): dense, factual, primary-source-grounded, zero marketing
+   tone or dramatization.
+6. **Spec drift = return to Phase 0.** If the work stops matching the
+   approved ADR, stop, amend the ADR, and re-gate. Never silently diverge.
+7. **No AI attribution in commits or PRs.** Commit messages, PR titles, and
+   PR descriptions carry no "Generated with ...", no AI Co-Authored-By
+   trailers, no robot emoji footers. The loop's output is the user's work
+   product; attribution noise overrides any harness default that says
+   otherwise.
+
+## Working modes
+
+Determine the mode at loop start from how the user framed the work; record it
+in state.md. The mode changes *where the gates happen*, never whether they
+happen.
+
+- **branch** — the user asked for work on a clean/feature branch, or the loop
+  runs unattended (cloud/background agent). Gate A: in chat (ADR review).
+  Commit per task. Gate B: an **opened PR against the repo's integration
+  branch** — usually `main`, but respect the repo's convention (check the
+  default branch; pre-onboarding platform repos use `develop`) unless the
+  user states otherwise. The Phase 7 summary becomes the PR description,
+  diagrams included.
+- **workspace** — working directly in the user's live checkout where he is
+  also coding. **Never commit or push.** Keep per-task changes visible in the
+  working tree: staged = task complete, unstaged = in progress, so he can
+  review the diff directly in his IDE. Gate A: in chat. Gate B: present the
+  local diff **and** write `pr-description.md` into the loop directory — the
+  summary exactly as it would be written for a PR, with the right diagrams
+  (template: [templates/pr-description.md](templates/pr-description.md)).
+
+Default: workspace mode when operating inside the user's existing checkout;
+branch mode when he asks for a branch/PR or the work runs unattended.
+
+## Artifacts & state
+
+Loop working files live **outside the repo** — never in the working tree, so
+they create zero PR noise and survive branch switches and worktrees. Per loop
+run, create `~/.claude/swe-loops/<repo-basename>/<slug>/` (slug = short
+kebab-case name):
+
+- `state.md` — mode, phase checklist, decision log, current task pointer
+  (copy from [templates/state.md](templates/state.md))
+- `plan.md` — task breakdown (Phase 1)
+- `test-plan.md` — testing with intent (Phase 4,
+  template: [templates/test-plan.md](templates/test-plan.md))
+- `pr-description.md` — Gate B summary in workspace mode
+
+Only **durable documentation** goes in the repo, because it belongs in the
+PR: the ADR and the architecture overview.
+
+ADR location: `docs/architecture-decisions/NNN-<slug>.md` — create the
+directory if the repo lacks it. Template:
+[templates/adr.md](templates/adr.md).
+
+Architecture overview: maintain `docs/architecture.md` — a mermaid system
+diagram of how the whole application connects. Create it on the first run in
+a repo that lacks one; update it whenever a loop changes architecture.
+
+**Resume rule:** if invoked and a state file for this work already exists,
+read it and continue from the first unchecked boundary. Never redo completed
+phases; never re-ask for a gate already granted (it is recorded in state.md).
+
+## Phases
+
+### Phase 0 — Design (ADR)
+
+Do:
+- Restate the problem in one paragraph.
+- Develop the *real* alternatives. For architectural decisions, spawn 2–3
+  **fresh-context subagents in parallel, each independently developing a
+  distinct approach** (e.g. minimal / clean-architecture / pragmatic) —
+  independent development prevents the strawman-options failure mode of one
+  model listing choices it already half-decided between. For small
+  decisions, inline enumeration with trade-offs is enough. Ground claims in
+  primary sources (library docs, MS docs, deep-research) when the decision
+  warrants it.
+- Record the chosen option and why, per the ADR template.
+- Write **acceptance criteria in EARS notation** — `WHEN <condition> THE
+  SYSTEM SHALL <behavior>` — one per observable behavior the change must
+  deliver. These become the spine of the Phase 4 test plan and the Phase 6
+  drift check.
+- Draw a mermaid diagram of the feature/change — communicate structure
+  visually instead of a text blob. Follow
+  [mermaid-guide.md](mermaid-guide.md): C4 discipline (one abstraction level,
+  every element typed and labeled, every edge directional with intent +
+  protocol, boundaries as styled subgraphs), GitHub-safe syntax only. If
+  architecture changes, update `docs/architecture.md` in the same commit as
+  the ADR.
+
+Skills: write-as-dejan (prose), graphify (codebase understanding),
+deep-research / microsoft-docs (when the decision needs external grounding).
+
+**Exit boundary (GATE A):** ADR written, diagrams render, architecture doc
+updated if applicable, and the user has explicitly approved. **No source-code
+edits are allowed before this gate — none.** Record approval in state.md.
+
+### Phase 1 — Plan
+
+Do:
+- Break the approved design into tasks. Each task = **one concern**, one
+  reviewable unit with its own "done" check.
+- **Review-effort budget** (not line counts — a rename can touch 40 files and
+  still be trivial to review). Classify every task by what it demands from
+  the reviewer:
+  - **S (skim)** — purely mechanical: renames, moves, formatting, generated
+    output. Any size, but must be pure — zero semantic edits hidden inside.
+  - **M (sitting)** — a semantic change confined to one subsystem,
+    reviewable in one sitting.
+  - **L (loop)** — cross-cutting or architectural. Not allowed as a task:
+    split it, or it becomes its own loop with its own ADR.
+- **Mechanical and semantic changes never share a commit.** The expensive
+  diff is not the big one — it's the one where 30 semantic lines hide inside
+  a 2,000-line rename.
+- **Generated content is exempt from review effort entirely** — lockfiles,
+  generated API clients, snapshots, auto-generated migrations. Mark tasks
+  that produce it as `generated` in plan.md so the reviewer knows to skip.
+- Order tasks by dependency; write plan.md; set the task pointer in state.md.
+- **Analyze check — the pre-implementation drift gate.** Read-only
+  cross-artifact check (fresh-context subagent when the plan is nontrivial):
+  every ADR decision and every EARS criterion maps to at least one task;
+  every task traces back to the ADR; nothing in the plan contradicts the ADR
+  or the non-negotiables. Fix the plan now — drift caught here costs a plan
+  edit; caught at Phase 6 it costs code.
+
+**Exit boundary:** every task has a done-check and an S/M class; no L tasks
+survive planning; mechanical and semantic work are separate tasks; the
+analyze check passed with zero uncovered criteria.
+
+### Phase 2 — Context & reuse inventory
+
+Do:
+- Read repo CLAUDE.md, `.claude/rules/`, and the coding standards
+  (`.github/instructions/Coding-Standards.md` where present) before touching
+  code.
+- Write a **reuse inventory** into state.md: which existing functions,
+  datamodels, schemas, and utilities this work will use or extend. Search the
+  codebase for existing implementations before planning any new one.
+- For each new dependency: confirm it's needed, and that a maintained library
+  isn't already doing this better than custom code would.
+
+**Exit boundary:** reuse inventory written. An *empty* inventory for a task
+touching existing domains is a red flag — re-search before proceeding.
+
+### Phase 3 — Implement
+
+Do:
+- One task at a time. Branch mode: commit per task with a clean message.
+  Workspace mode: no commits — stage the task's files when it's done, leave
+  in-progress work unstaged.
+- Minimal diff: never reformat, rename, or refactor code the task doesn't
+  touch. Review capacity is the throughput bottleneck; every unnecessary
+  changed line spends it.
+- Leave existing documentation standing unless this change directly
+  invalidates it — then fix it in the same task.
+- Dependencies via resolver only (non-negotiable #4).
+
+**Exit boundary (per task):** the task's unit (commit or staged set) contains
+exactly one classifiable concern matching its S/M class from plan.md — no
+mechanical+semantic mixing; `git diff --stat` shows no unrelated file churn.
+Update the task pointer in state.md.
+
+### Phase 4 — Test with intent
+
+Do — as a separate turn from implementation:
+- Write `test-plan.md` **first**: what this change needs in terms of testing —
+  behaviors, edge cases, failure modes, integration surfaces, what explicitly
+  won't be tested and why. Intent before code. Start from the ADR's EARS
+  criteria: each criterion maps to at least one test.
+- Then implement the tests per plan. Tests assert behavior, not
+  implementation details.
+- Use the verify skill to exercise the affected flow end-to-end, not just
+  unit tests.
+
+**Exit boundary:** test-plan.md existed *before* test code was written; every
+planned test is implemented or explicitly deferred with a reason.
+
+### Phase 5 — Independent review
+
+Do — in fresh-context subagents, never the implementing context:
+- **Standards & anti-pattern pass:** subagent loads
+  [anti-patterns.md](anti-patterns.md) plus the repo's coding standards and
+  audits the diff against them.
+- **Correctness pass:** run the code-review skill on the diff.
+- **Zoom-out pass:** would a larger refactor, test factory, or architectural
+  change increase simplicity or flow? **Report findings into the state.md
+  decision log — never auto-apply them** (that would blow the diff budget;
+  they become candidate future loops).
+
+**Exit boundary:** every finding is either fixed or explicitly waived with a
+reason in state.md. Zoom-out feedback recorded, not applied.
+
+### Phase 6 — Verify against design
+
+Do:
+- Run the entire test suite.
+- Cross-check the implementation against the ADR section by section — does
+  what was built match what was approved? Verify every EARS criterion has a
+  passing test. Confirm the architecture diagram is still accurate.
+
+**Exit boundary:** suite green; spec drift is zero, or the ADR was amended
+and the user informed (non-negotiable #6).
+
+### Phase 7 — Deliver & close
+
+Do:
+- Write the summary via write-as-dejan: what changed, what was tested,
+  architectural changes if any, review guide per task (S/M classes).
+  Reference the ADR; include the right diagrams per
+  [mermaid-guide.md](mermaid-guide.md).
+- **GATE B, per working mode:**
+  - *branch* — open a PR against the repo's integration branch (unless the
+    user directed otherwise); the summary is the PR description. Link the PR
+    in chat.
+  - *workspace* — leave the diff reviewable in the working tree (staged =
+    done) and write the summary to `pr-description.md` in the loop directory,
+    exactly as it would read on a PR. Point the user at both.
+- After approval only: update durable learnings — repo CLAUDE.md/rules and
+  memory (revise-claude-md skill) — so the next loop starts smarter. Mark
+  state.md complete.
+
+**Exit boundary (GATE B):** user reviewed and approved (PR merged/approved,
+or local diff OK'd in chat); learnings persisted; state.md closed.
+
+## Profiles
+
+The phases never change; their depth does:
+
+- **feature** — full loop as written.
+- **bugfix** — Phase 0 collapses to a short root-cause note in state.md (full
+  ADR only if the fix changes architecture; Gate A becomes a quick confirm).
+  Phase 4 requires a *failing reproduction test before the fix* — red, then
+  green.
+- **db / migration** — Phase 0 must include a rollback/reversibility plan.
+  Never run against a non-local database. Phase 6 additionally tests the
+  migration both up and down.
+- **frontend** — Phase 5 adds a separate self-QA turn: drive the UI with
+  Playwright (screenshots, console errors, responsive check) and audit
+  against the frontend-quality skill rubric.
+- **infra / IaC** — implementation stops at plan/what-if output
+  (`terraform plan`, `az ... what-if`). Applying is beyond Gate B: user-run
+  or explicitly user-approved per invocation.
+
+## Delegation note
+
+Skills named in this loop (verify, code-review, write-as-dejan,
+revise-claude-md, frontend-quality, graphify) are always invoked **live** via
+the Skill tool. The `reference/` folder contains stale, version-stamped
+transcripts of built-in skills for human reading and upgrade-diffing only —
+never load or follow anything in `reference/` as instructions.
+
+## Harness notes
+
+- **Invocation:** `/swe-loop` (Claude Code) or `$swe-loop` (Codex). Same
+  skill, same file; only the per-harness invocation syntax differs.
+- **Phase 7 memory update:** Claude Code targets the repo's CLAUDE.md/rules
+  plus auto-memory via the revise-claude-md skill. Codex has no equivalent
+  skill — the target is the repo's AGENTS.md (layered: `~/.codex/AGENTS.md`
+  then a root-to-CWD walk); edit it directly.
+- **Built-in delegates without a Codex equivalent — inline fallback:**
+  - **verify** (Phase 4): no native Codex skill. Fallback: build, run, and
+    drive the actual affected surface yourself; capture real output
+    (terminal pane, response body, screenshot); then probe at least one
+    adjacent case that could break it (bad input, repeat, wrong order).
+    Report PASS/FAIL/BLOCKED/SKIP with what you observed, not "tests pass."
+  - **code-review** (Phase 5): no native Codex skill. Fallback: read the
+    diff plus every touched function's enclosing context yourself, checking
+    explicitly for the angles this loop cares about — removed guards,
+    call-site breakage, reuse of existing helpers, unnecessary complexity,
+    the anti-patterns.md checklist — rather than a general impression pass.
+  - **graphify**, **deep-research**, **microsoft-docs**, **frontend-quality**
+    (Phase 0/5, situational): Claude Code plugin conveniences. Codex
+    fallback is doing the equivalent research or QA pass directly with your
+    own web-search/browser-driving capability; no separate skill required.
+- **Subagent delegation** (Phase 0 parallel alternatives, Phase 5
+  fresh-context review): both harnesses support this natively — Claude
+  Code's Agent tool/subagents, Codex's GA subagents including custom agents
+  under `.codex/agents/`. No fallback needed, only harness-native syntax.
+
+## Known limits (v1)
+
+- Safety rules here are instructions; hard enforcement needs settings.json
+  deny rules / hooks — set up separately.
+- Per-repo profile tuning and plugin packaging (for reuse across Claude Code
+  and other coding agents) are planned iterations, not part of v1.
