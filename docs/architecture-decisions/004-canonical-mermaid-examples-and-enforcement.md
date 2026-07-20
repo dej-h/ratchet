@@ -72,10 +72,11 @@ Use Option B for the canonical editorial contract. Add an isolated Node
 toolchain for actual rendering, resolved through npm and committed with its
 lockfile. The renderer reads icon data from the locked local Iconify packages,
 serves it on loopback for mermaid-cli's named icon-pack URL interface, and
-never resolves icon bytes from unpkg. Stable Mermaid ID and hand-drawn seeds
-make repeated renders deterministic. The check command renders into a
-temporary directory and byte-compares icon-track output with the committed
-dark and light SVGs.
+never resolves icon bytes from unpkg. Stable Mermaid ID and hand-drawn seeds,
+plus first-seen normalization of Iconify's generated internal definition IDs,
+make repeated renders deterministic without changing icon geometry. The check
+command renders into a temporary directory and byte-compares icon-track output
+with the committed dark and light SVGs.
 
 - Pros: proves both the source-level rules and the generated-artifact
   contract. It addresses the exact known gap in ADR 003 at the trigger ADR
