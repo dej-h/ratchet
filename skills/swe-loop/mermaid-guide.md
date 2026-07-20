@@ -283,15 +283,23 @@ icons anyway, by pre-rendering locally and committing the result. It is
 teaching objects (a README hero diagram, a flagship ADR); everything else
 stays plain GitHub-native mermaid per the rules above.
 
-**Icons need `--iconPacks`, always:**
+**Icons need locally served icon packs, always.** Registered icon examples use
+the repository's locked renderer, which reads exact package versions from
+`tools/diagrams/package-lock.json`, serves their Iconify JSON from loopback,
+and supplies those URLs to Mermaid CLI:
 
 ```bash
-npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-dark.svg  -b '#0d1117' \
-  --iconPacks @iconify-json/mdi @iconify-json/logos \
-  -c mermaid-dark-titlecolor.json
-npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-light.svg -b white \
-  --iconPacks @iconify-json/mdi @iconify-json/logos
+cd tools/diagrams
+npm ci
+npm run diagrams:write
+npm run diagrams:check
 ```
+
+Add the source, dark/light configs, output paths, and Iconify packages to
+`docs/diagrams/canonical-examples.json` before regenerating. The write command
+renders every registered example twice, rejects unresolved icon placeholders,
+and only then replaces committed icon SVGs. The check command repeats that
+process and requires byte-identical committed artifacts.
 
 Use flowchart icon-shape syntax: `A@{ shape: icon, icon: "mdi:account",
 label: "Browser", pos: "t" }`. Prefix convention: `mdi:` (Material Design
@@ -372,17 +380,10 @@ app rolls forward only after migration success. Source:
   <img src="../../docs/diagrams/voortman-fullstack-deploy-icons-light.svg" alt="Numbered full-stack deployment flow from a GitHub main push through relay, tested digest, ACR import, migration and health gates to either failed or running status">
 </picture>
 
-Regeneration checked on 2026-07-20 with mermaid-cli 11.16.0: the committed
-`.mmd` and config produced both committed SVGs. The commands intentionally
-resolve current package versions, so future output is not guaranteed to be
-byte-identical after upstream releases. The source, config, and recorded
-renderer version preserve provenance and keep the diagram re-renderable.
-
-**Known gap, stated plainly (see ADR 003):** nothing in CI checks that a
-committed SVG still matches its `.mmd` source after an edit. No tooling
-exists for this yet. It is deliberately not built ahead of a real drift
-problem, per the same anti-ceremony principle that keeps this whole guide
-from growing machinery nothing has proven necessary.
+The renderer contract is locked by `tools/diagrams/.node-version` and
+`package-lock.json`. CI runs the structural validator, renderer contract tests,
+and `npm run diagrams:check`, so source/config drift, nondeterministic output,
+an unresolved icon fallback, or a stale committed SVG fails the PR.
 
 ## Render QA — mandatory for every new or changed diagram
 
@@ -392,13 +393,11 @@ applies to frontends. Syntax that parses can still render illegibly (title
 washout, label-on-node overlap, clipped text at canvas edges, long crossing
 edges), and none of that is visible in the source text.
 
-```bash
-npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-dark.png  -t dark -b '#0d1117'
-npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-light.png -b white
-```
-
-(First run downloads a headless browser; cached afterward, renders take
-seconds.)
+For registered canonical diagrams, first run the locked write/check workflow
+above. For an exploratory unregistered source, install the same lockfile with
+`npm ci` and invoke `tools/diagrams/node_modules/.bin/mmdc` directly to create
+dark and light PNG previews. Do not use a floating `npx` package version as
+evidence for a canonical artifact.
 
 Inspect BOTH images and check:
 
