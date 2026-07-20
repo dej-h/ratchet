@@ -316,7 +316,10 @@ export async function renderCanonicalDiagrams(mode, diagnosticDirectory) {
         await compareFiles(firstOutput, secondOutput, `${key} deterministic check`);
         if (mode === "diagnose") {
           await mkdir(diagnosticDirectory, { recursive: true });
-          await copyFile(firstOutput, path.join(diagnosticDirectory, `${key}.svg`));
+          await copyFile(
+            firstOutput,
+            path.join(diagnosticDirectory, `${example.id}-${theme}.svg`),
+          );
           continue;
         }
         if (example.rendering !== "icon") {
