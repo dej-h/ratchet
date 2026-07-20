@@ -276,6 +276,29 @@ class TestCanonicalSourceContract:
             for finding in findings
         )
 
+    @pytest.mark.parametrize(
+        "alternate_edge",
+        [
+            'C["C"] --- D["D"]',
+            "C((C)) ==> D",
+            "C & D --- E",
+        ],
+    )
+    def test_inline_or_multi_source_alternate_edge_is_reported(
+        self, repo: Path, alternate_edge: str
+    ) -> None:
+        source = (
+            'graph LR\n    A["A"]\n    B["B"]\n    C["C"]\n    D["D"]\n    E["E"]\n'
+            '    A -->|"calls"| B\n'
+            f"    {alternate_edge}\n"
+        )
+        set_source(repo, source)
+        findings = run_checks(repo)
+        assert any(
+            "edge must be one labeled unidirectional source line" in finding
+            for finding in findings
+        )
+
     def test_inline_class_is_reported(self, repo: Path) -> None:
         set_source(
             repo,

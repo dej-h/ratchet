@@ -57,8 +57,7 @@ EDGE_RE = re.compile(
     r'^\s*([A-Za-z][A-Za-z0-9_]*)\s+(-->|-\.->)\|"([^"]+)"\|\s+'
     r"([A-Za-z][A-Za-z0-9_]*)\s*$"
 )
-EDGE_CANDIDATE_RE = re.compile(
-    r"^\s*[A-Za-z][A-Za-z0-9_]*\s*"
+EDGE_OPERATOR_RE = re.compile(
     r"(?P<operator>(?=[<>=.~ox-]*[<>=.~-])[<>=.~ox-]{2,})"
 )
 NODE_DECLARATION_RE = re.compile(r"^\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:@\{|\[|\(|\{)")
@@ -455,6 +454,21 @@ def _parse_class_assignments(source: str) -> dict[str, set[str]]:
     return assignments
 
 
+def _mask_quoted_text(source: str) -> list[str]:
+    """Preserve source layout while hiding text that cannot contain an edge."""
+    masked: list[str] = []
+    inside_quote = False
+    for character in source:
+        if character == '"':
+            inside_quote = not inside_quote
+            masked.append(" ")
+        elif inside_quote and character != "\n":
+            masked.append(" ")
+        else:
+            masked.append(character)
+    return "".join(masked).splitlines()
+
+
 def _check_source_contract(example: CanonicalExample, source: str) -> list[str]:
     """Validate one canonical source against the intentionally small grammar."""
     prefix = f"{example.source}"
@@ -476,8 +490,12 @@ def _check_source_contract(example: CanonicalExample, source: str) -> list[str]:
     connected_nodes: set[str] = set()
     step_numbers: set[int] = set()
     edge_count = 0
-    for line_number, line in enumerate(source.splitlines(), 1):
-        if EDGE_CANDIDATE_RE.match(line) is None:
+    masked_lines = _mask_quoted_text(source)
+    for line_number, (line, masked_line) in enumerate(
+        zip(source.splitlines(), masked_lines, strict=True), 1
+    ):
+        uncommented = masked_line.split("%%", 1)[0]
+        if EDGE_OPERATOR_RE.search(uncommented) is None:
             continue
         match = EDGE_RE.fullmatch(line)
         if match is None:
