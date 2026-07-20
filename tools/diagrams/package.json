@@ -6,6 +6,7 @@
     "diagrams:write": "node render.mjs --write",
     "diagrams:check": "node render.mjs --check",
     "diagrams:diagnose": "node render.mjs --diagnose",
+    "diagrams:preview": "node render.mjs --preview",
     "test": "node --test test/*.test.mjs"
   },
   "devDependencies": {
@@ -13,6 +14,7 @@
     "@fontsource/noto-sans-symbols": "^5.3.0",
     "@iconify-json/logos": "^1.2.11",
     "@iconify-json/mdi": "^1.2.3",
-    "@mermaid-js/mermaid-cli": "^11.16.0"
+    "mermaid": "^11.16.0",
+    "puppeteer": "^25.3.0"
   }
 }

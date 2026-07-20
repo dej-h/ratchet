@@ -71,23 +71,23 @@ provenance.
 Use Option B for the canonical editorial contract. Add an isolated Node
 toolchain for actual rendering, resolved through npm and committed with its
 lockfile. The renderer reads icon data from the locked local Iconify packages,
-serves it on loopback for mermaid-cli's named icon-pack URL interface, and
+serves it on loopback for Mermaid's named icon-pack loader interface, and
 never resolves icon bytes from unpkg. Stable Mermaid ID and hand-drawn seeds,
 plus first-seen normalization of Iconify's generated internal definition IDs,
 make repeated renders deterministic without changing icon geometry. The check
 command renders into a temporary directory and byte-compares icon-track output
 with the committed dark and light SVGs.
 
-Layout fonts are part of that boundary. A renderer-owned Fontconfig overlay
-aliases resolver-locked Inter and Noto Sans Symbols files under unique family
-names before Mermaid measures the graph, then embeds those same files in the
-SVG. This keeps Latin labels and circled step numbers independent of host
-fallback fonts.
+Layout fonts are part of that boundary. The renderer injects resolver-locked
+Inter and Noto Sans Symbols files into its browser page under unique family
+names, proves both faces loaded, and only then invokes Mermaid. It embeds those
+same files in the SVG. This keeps Latin labels and circled step numbers
+independent of host font discovery and fallback fonts.
 
 Chromium reports `No usable sandbox` on the GitHub-hosted Ubuntu 24.04 job. The
 renderer therefore passes a committed Puppeteer configuration containing only
 `--no-sandbox` when `CI` is exactly `true`. Ordinary local runs with `CI` unset
-retain Mermaid CLI's browser defaults. This exception is limited to the
+retain Puppeteer's browser sandbox defaults. This exception is limited to the
 ephemeral documentation-rendering job and its complete policy is covered by a
 boundary test. When artifact comparison fails, CI also asks the same renderer
 to write every registry-derived theme output into a dedicated runner-temp

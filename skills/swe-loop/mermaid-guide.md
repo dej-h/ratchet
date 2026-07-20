@@ -209,7 +209,7 @@ graph TB
     classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
 ```
 
-Passed render QA (dark + light, mermaid-cli) before shipping: node text
+Passed render QA (dark + light, locked browser renderer) before shipping: node text
 stays legible in both themes because color is set explicitly per class
 rather than left to theme defaults — the same lesson ADR 001 learned about
 subgraph titles applies to node fills, with the fix being the opposite move
@@ -286,7 +286,7 @@ stays plain GitHub-native mermaid per the rules above.
 **Icons need locally served icon packs, always.** Registered icon examples use
 the repository's locked renderer, which reads exact package versions from
 `tools/diagrams/package-lock.json`, serves their Iconify JSON from loopback,
-and supplies those URLs to Mermaid CLI:
+and supplies those URLs to Mermaid's icon-pack API:
 
 ```bash
 cd tools/diagrams
@@ -397,9 +397,16 @@ edges), and none of that is visible in the source text.
 
 For registered canonical diagrams, first run the locked write/check workflow
 above. For an exploratory unregistered source, install the same lockfile with
-`npm ci` and invoke `tools/diagrams/node_modules/.bin/mmdc` directly to create
-dark and light PNG previews. Do not use a floating `npx` package version as
-evidence for a canonical artifact.
+`npm ci`, then use the same browser, fonts, configs, and locally served icon
+packs to create deterministic dark and light SVG previews outside the source
+tree:
+
+```bash
+npm run diagrams:preview -- docs/diagrams/example.mmd /tmp/diagram-preview
+```
+
+Do not use a floating `npx` package version as evidence for a canonical
+artifact.
 
 Inspect BOTH images and check:
 
@@ -412,8 +419,8 @@ Inspect BOTH images and check:
    in TB), not floating at the far edge.
 
 Fix, re-render, repeat until every point passes; then run the self-check
-below on the final render. GitHub's exact theme differs slightly from
-mermaid-cli's, but every failure listed above reproduces in both.
+below on the final render. GitHub's exact theme differs slightly from the
+locked browser renderer's, but every failure listed above reproduces in both.
 
 ## Self-check before shipping a diagram
 

@@ -1,7 +1,5 @@
-import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import {
-  access,
   copyFile,
   mkdir,
   mkdtemp,
@@ -12,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import puppeteer from "puppeteer";
 
 const toolRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(toolRoot, "../..");
@@ -23,12 +22,12 @@ const defaultConfigs = {
 const fontSources = [
   {
     family: "Ratchet Inter",
-    filename: "inter-latin-400-normal.woff2",
+    probe: "Cache miss",
     source: "@fontsource/inter/files/inter-latin-400-normal.woff2",
   },
   {
     family: "Ratchet Symbols",
-    filename: "noto-sans-symbols-symbols-400-normal.woff2",
+    probe: "①",
     source: "@fontsource/noto-sans-symbols/files/noto-sans-symbols-symbols-400-normal.woff2",
   },
 ];
@@ -48,6 +47,23 @@ export async function readRegistry() {
     throw new Error("Unsupported canonical diagram registry");
   }
   return parsed.examples;
+}
+
+export function createPreviewExample(source, registeredExamples) {
+  const absoluteSource = repositoryPath(source);
+  const relativeSource = path.relative(repoRoot, absoluteSource);
+  const id = path.parse(relativeSource).name.replaceAll(/[^A-Za-z0-9-]/gu, "-");
+  if (id.length === 0) {
+    throw new Error(`Preview source needs a usable filename: ${source}`);
+  }
+  return {
+    id,
+    icon_packs: [...new Set(registeredExamples.flatMap(
+      (example) => example.icon_packs ?? [],
+    ))].sort(),
+    rendering: "icon",
+    source: relativeSource,
+  };
 }
 
 async function loadIconPacks(examples) {
@@ -97,24 +113,10 @@ export async function createIconPackServer(examples) {
   };
 }
 
-function escapeXmlText(value) {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-export async function writeFontAssets(directory) {
-  const fontDirectory = path.join(directory, "fonts");
-  const fontCacheDirectory = path.join(directory, "font-cache");
-  await Promise.all([
-    mkdir(fontDirectory, { recursive: true }),
-    mkdir(fontCacheDirectory, { recursive: true }),
-  ]);
-
+export async function loadFontCss() {
   const fontFaces = [];
-  const fontScanRules = [];
   for (const fontSource of fontSources) {
-    const installedPath = path.join(fontDirectory, fontSource.filename);
     const font = await readFile(path.join(toolRoot, "node_modules", fontSource.source));
-    await writeFile(installedPath, font);
     fontFaces.push(
       `@font-face {\n` +
         `  font-family: "${fontSource.family}";\n` +
@@ -123,114 +125,129 @@ export async function writeFontAssets(directory) {
         `  src: url("data:font/woff2;base64,${font.toString("base64")}") format("woff2");\n` +
         `}`,
     );
-    fontScanRules.push(
-      `  <match target="scan">\n` +
-        `    <test name="file" compare="eq">\n` +
-        `      <string>${escapeXmlText(installedPath)}</string>\n` +
-        `    </test>\n` +
-        `    <edit name="family" mode="assign">\n` +
-        `      <string>${fontSource.family}</string>\n` +
-        `    </edit>\n` +
-        `  </match>`,
-    );
   }
 
-  const cssPath = path.join(directory, "font.css");
-  await writeFile(
-    cssPath,
+  return (
     `${fontFaces.join("\n")}\n` +
-      `:root, body, svg, .label, .nodeLabel, .edgeLabel {\n` +
-      `  font-family: "Ratchet Inter", "Ratchet Symbols" !important;\n` +
-      `}\n`,
+    `:root, body, svg, .label, .nodeLabel, .edgeLabel {\n` +
+    `  font-family: "Ratchet Inter", "Ratchet Symbols" !important;\n` +
+    `}\n`
   );
-
-  const fontConfigPath = path.join(directory, "fonts.conf");
-  await writeFile(
-    fontConfigPath,
-    `<?xml version="1.0"?>\n` +
-      `<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n` +
-      `<fontconfig>\n` +
-      `  <include ignore_missing="no">/etc/fonts/fonts.conf</include>\n` +
-      `  <dir>${escapeXmlText(fontDirectory)}</dir>\n` +
-      `  <cachedir>${escapeXmlText(fontCacheDirectory)}</cachedir>\n` +
-      `${fontScanRules.join("\n")}\n` +
-      `</fontconfig>\n`,
-  );
-  return { cssPath, fontConfigPath };
-}
-
-function run(command, args, environment = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        ...environment,
-        NO_PROXY: "127.0.0.1,localhost",
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8").on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.setEncoding("utf8").on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.once("error", reject);
-    child.once("close", (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(new Error(`${command} exited ${code}\n${stdout}${stderr}`));
-    });
-  });
 }
 
 function configFor(example, theme) {
   return example.configs?.[theme] ?? defaultConfigs[theme];
 }
 
-export function ciPuppeteerArguments(isCi = process.env.CI === "true") {
+export async function puppeteerConfiguration(isCi = process.env.CI === "true") {
+  const configuration = { headless: "shell" };
   if (!isCi) {
-    return [];
+    return configuration;
   }
-  return ["-p", path.join(toolRoot, "puppeteer-ci.json")];
+  const policy = JSON.parse(
+    await readFile(path.join(toolRoot, "puppeteer-ci.json"), "utf8"),
+  );
+  return { ...configuration, ...policy };
 }
 
-export async function renderExample({ example, theme, output, fonts, iconUrls }) {
-  const mmdc = path.join(toolRoot, "node_modules/.bin/mmdc");
-  await access(mmdc);
-  const args = [
-    "-i",
-    repositoryPath(example.source),
-    "-o",
-    output,
-    "-t",
-    theme === "dark" ? "dark" : "default",
-    "-b",
-    theme === "dark" ? "#0d1117" : "white",
-    "-c",
-    repositoryPath(configFor(example, theme)),
-    "-C",
-    fonts.cssPath,
-    "-I",
-    `ratchet-${example.id}-${theme}`,
-    ...ciPuppeteerArguments(),
-    "--quiet",
-  ];
+export async function renderExample({ browser, example, theme, output, fontCss, iconUrls }) {
+  const definition = await readFile(repositoryPath(example.source), "utf8");
+  const mermaidConfig = JSON.parse(
+    await readFile(repositoryPath(configFor(example, theme)), "utf8"),
+  );
+  const backgroundColor = theme === "dark" ? "#0d1117" : "white";
   if ((example.icon_packs ?? []).length > 0) {
     const prefixes = new Set(
       example.icon_packs.map((packageName) => packageName.split("/").at(-1)),
     );
-    const selectedUrls = iconUrls.filter((url) => prefixes.has(url.split("#", 1)[0]));
-    args.push("--iconPacksNamesAndUrls", ...selectedUrls);
+    iconUrls = iconUrls.filter((url) => prefixes.has(url.split("#", 1)[0]));
   }
-  await run(mmdc, args, { FONTCONFIG_FILE: fonts.fontConfigPath });
-  if (path.extname(output) === ".svg") {
+
+  const page = await browser.newPage();
+  let renderError;
+  try {
+    await page.setViewport({ width: 800, height: 600, deviceScaleFactor: 1 });
+    await page.setContent('<!doctype html><html><body><div id="container"></div></body></html>');
+    await page.addStyleTag({ content: fontCss });
+    await page.evaluate(async (fontProbes) => {
+      for (const { family, probe } of fontProbes) {
+        const loaded = await document.fonts.load(`400 16px "${family}"`, probe);
+        if (loaded.length !== 1) {
+          throw new Error(`Expected one loaded face for ${family}, got ${loaded.length}`);
+        }
+      }
+      await document.fonts.ready;
+    }, fontSources.map(({ family, probe }) => ({ family, probe })));
+    await page.addScriptTag({
+      path: path.join(toolRoot, "node_modules/mermaid/dist/mermaid.min.js"),
+    });
+
+    await page.$eval(
+      "#container",
+      async (
+        container,
+        {
+          backgroundColor: pageBackground,
+          definition: source,
+          fontCss,
+          iconPackUrls,
+          mermaidConfig: configuration,
+          svgId,
+          theme: selectedTheme,
+        },
+      ) => {
+        const mermaid = window.mermaid;
+        mermaid.registerIconPacks(
+          iconPackUrls.map((iconPackUrl) => {
+            const [name, url] = iconPackUrl.split("#", 2);
+            return { name, loader: () => fetch(url).then((response) => response.json()) };
+          }),
+        );
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: selectedTheme === "dark" ? "dark" : "default",
+          ...configuration,
+        });
+        const { svg: svgText } = await mermaid.render(svgId, source, container);
+        container.innerHTML = svgText;
+        const svg = container.querySelector("svg");
+        svg.style.backgroundColor = pageBackground;
+        const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+        style.appendChild(document.createTextNode(fontCss));
+        svg.appendChild(style);
+      },
+      {
+        backgroundColor,
+        definition,
+        fontCss,
+        iconPackUrls: iconUrls,
+        mermaidConfig,
+        svgId: `ratchet-${example.id}-${theme}`,
+        theme,
+      },
+    );
+    const svg = await page.$eval("svg", (element) =>
+      new XMLSerializer().serializeToString(element),
+    );
+    await writeFile(output, svg);
     await normalizeIconifyIds(output);
+  } catch (error) {
+    renderError = error;
+  } finally {
+    try {
+      await page.close();
+    } catch (closeError) {
+      if (renderError !== undefined) {
+        throw new AggregateError(
+          [renderError, closeError],
+          `Rendering ${example.id}:${theme} and closing its page failed`,
+        );
+      }
+      throw closeError;
+    }
+  }
+  if (renderError !== undefined) {
+    throw renderError;
   }
 }
 
@@ -248,12 +265,12 @@ export async function normalizeIconifyIds(svgPath) {
   }
 }
 
-async function renderPass(examples, directory, fonts, iconUrls) {
+async function renderPass(browser, examples, directory, fontCss, iconUrls) {
   const outputs = new Map();
   for (const example of examples) {
     for (const theme of ["dark", "light"]) {
       const output = path.join(directory, `${example.id}-${theme}.svg`);
-      await renderExample({ example, theme, output, fonts, iconUrls });
+      await renderExample({ browser, example, theme, output, fontCss, iconUrls });
       if (example.rendering === "icon") {
         await assertNoIconPlaceholders(output, `${example.id}:${theme}`);
       }
@@ -285,26 +302,34 @@ export async function assertNoIconPlaceholders(svgPath, context) {
   }
 }
 
-export async function renderCanonicalDiagrams(mode, diagnosticDirectory) {
-  const examples = await readRegistry();
+export async function renderCanonicalDiagrams(mode, outputDirectory, previewSource) {
+  const registeredExamples = await readRegistry();
+  const examples = mode === "preview"
+    ? [createPreviewExample(previewSource, registeredExamples)]
+    : registeredExamples;
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), "ratchet-diagrams-"));
   const firstPassDirectory = path.join(temporaryRoot, "first");
   const secondPassDirectory = path.join(temporaryRoot, "second");
+  let browser;
   let iconServer;
+  let renderError;
   try {
     iconServer = await createIconPackServer(examples);
+    browser = await puppeteer.launch(await puppeteerConfiguration());
     await Promise.all([mkdir(firstPassDirectory), mkdir(secondPassDirectory)]);
-    const fonts = await writeFontAssets(temporaryRoot);
+    const fontCss = await loadFontCss();
     const firstOutputs = await renderPass(
+      browser,
       examples,
       firstPassDirectory,
-      fonts,
+      fontCss,
       iconServer.urls,
     );
     const secondOutputs = await renderPass(
+      browser,
       examples,
       secondPassDirectory,
-      fonts,
+      fontCss,
       iconServer.urls,
     );
 
@@ -314,11 +339,11 @@ export async function renderCanonicalDiagrams(mode, diagnosticDirectory) {
         const firstOutput = requiredOutput(firstOutputs, key);
         const secondOutput = requiredOutput(secondOutputs, key);
         await compareFiles(firstOutput, secondOutput, `${key} deterministic check`);
-        if (mode === "diagnose") {
-          await mkdir(diagnosticDirectory, { recursive: true });
+        if (mode === "diagnose" || mode === "preview") {
+          await mkdir(outputDirectory, { recursive: true });
           await copyFile(
             firstOutput,
-            path.join(diagnosticDirectory, `${example.id}-${theme}.svg`),
+            path.join(outputDirectory, `${example.id}-${theme}.svg`),
           );
           continue;
         }
@@ -333,33 +358,75 @@ export async function renderCanonicalDiagrams(mode, diagnosticDirectory) {
         }
       }
     }
+  } catch (error) {
+    renderError = error;
   } finally {
-    try {
-      if (iconServer !== undefined) {
-        await iconServer.close();
+    const cleanupErrors = [];
+    for (const resource of [browser, iconServer]) {
+      if (resource === undefined) {
+        continue;
       }
-    } finally {
-      await rm(temporaryRoot, { recursive: true, force: true });
+      try {
+        await resource.close();
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
     }
+    try {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    if (cleanupErrors.length > 0) {
+      const errors = renderError === undefined
+        ? cleanupErrors
+        : [renderError, ...cleanupErrors];
+      const message = renderError === undefined
+        ? "Canonical renderer cleanup failed"
+        : "Canonical rendering and cleanup failed";
+      throw new AggregateError(errors, message);
+    }
+  }
+  if (renderError !== undefined) {
+    throw renderError;
   }
 }
 
 async function main() {
-  const [argument, diagnosticDirectory] = process.argv.slice(2);
+  const [argument, firstValue, secondValue] = process.argv.slice(2);
   const mode = argument?.slice(2);
+  const outputDirectory = mode === "preview" ? secondValue : firstValue;
+  const previewSource = mode === "preview" ? firstValue : undefined;
   if (
-    (mode !== "write" && mode !== "check" && mode !== "diagnose") ||
-    (mode === "diagnose" && diagnosticDirectory === undefined)
+    !["write", "check", "diagnose", "preview"].includes(mode) ||
+    ((mode === "diagnose" || mode === "preview") && outputDirectory === undefined) ||
+    (mode === "preview" && previewSource === undefined)
   ) {
-    throw new Error("Usage: node render.mjs --write|--check|--diagnose <directory>");
+    throw new Error(
+      "Usage: node render.mjs --write|--check|--diagnose <directory>|" +
+        "--preview <source.mmd> <directory>",
+    );
   }
-  await renderCanonicalDiagrams(mode, diagnosticDirectory);
+  await renderCanonicalDiagrams(mode, outputDirectory, previewSource);
   process.stdout.write(`PASS: canonical diagrams ${mode} completed\n`);
+}
+
+export function formatError(error) {
+  const ownError = error instanceof Error
+    ? (error.stack ?? error.message)
+    : String(error);
+  if (!(error instanceof AggregateError)) {
+    return ownError;
+  }
+  const members = error.errors.map(
+    (member, index) => `Aggregate member ${index + 1}:\n${formatError(member)}`,
+  );
+  return [ownError, ...members].join("\n");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    process.stderr.write(`${error.stack ?? error}\n`);
+    process.stderr.write(`${formatError(error)}\n`);
     process.exitCode = 1;
   });
 }

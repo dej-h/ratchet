@@ -7,89 +7,58 @@ import { fileURLToPath } from "node:url";
 
 import {
   assertNoIconPlaceholders,
-  ciPuppeteerArguments,
   compareFiles,
+  createPreviewExample,
   createIconPackServer,
+  formatError,
+  loadFontCss,
   normalizeIconifyIds,
+  puppeteerConfiguration,
   readRegistry,
-  writeFontAssets,
 } from "../render.mjs";
 
 const diagramsRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 test("browser sandbox override is restricted to one CI policy", async () => {
-  assert.deepEqual(ciPuppeteerArguments(false), []);
-  const ciArguments = ciPuppeteerArguments(true);
-  assert.equal(ciArguments[0], "-p");
-  const configPath = ciArguments[1];
-  assert.equal(path.isAbsolute(configPath), true);
-  assert.equal(path.basename(configPath), "puppeteer-ci.json");
-  const policy = JSON.parse(await readFile(configPath, "utf8"));
-  assert.deepEqual(policy, { args: ["--no-sandbox"] });
+  assert.deepEqual(await puppeteerConfiguration(false), { headless: "shell" });
+  assert.deepEqual(await puppeteerConfiguration(true), {
+    args: ["--no-sandbox"],
+    headless: "shell",
+  });
 });
 
-test("font assets pin layout aliases and embed the same files", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "ratchet-font-test-"));
-  try {
-    const fonts = await writeFontAssets(directory);
-    const expectedFonts = [
-      {
-        family: "Ratchet Inter",
-        filename: "inter-latin-400-normal.woff2",
-        packagePath: path.join(
-          diagramsRoot,
-          "node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2",
-        ),
-      },
-      {
-        family: "Ratchet Symbols",
-        filename: "noto-sans-symbols-symbols-400-normal.woff2",
-        packagePath: path.join(
-          diagramsRoot,
-          "node_modules/@fontsource/noto-sans-symbols/files/" +
-            "noto-sans-symbols-symbols-400-normal.woff2",
-        ),
-      },
-    ];
-    const [css, config] = await Promise.all([
-      readFile(fonts.cssPath, "utf8"),
-      readFile(fonts.fontConfigPath, "utf8"),
-    ]);
-    const fontDirectory = path.join(directory, "fonts");
-    const fontCacheDirectory = path.join(directory, "font-cache");
-    assert.ok(config.includes(`<dir>${fontDirectory}</dir>`));
-    assert.ok(config.includes(`<cachedir>${fontCacheDirectory}</cachedir>`));
-    assert.ok(
-      config.includes('<include ignore_missing="no">/etc/fonts/fonts.conf</include>'),
+test("font CSS pins layout aliases and embeds the resolver-owned files", async () => {
+  const css = await loadFontCss();
+  const expectedFonts = [
+    {
+      family: "Ratchet Inter",
+      packagePath: path.join(
+        diagramsRoot,
+        "node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2",
+      ),
+    },
+    {
+      family: "Ratchet Symbols",
+      packagePath: path.join(
+        diagramsRoot,
+        "node_modules/@fontsource/noto-sans-symbols/files/" +
+          "noto-sans-symbols-symbols-400-normal.woff2",
+      ),
+    },
+  ];
+
+  const faceBlocks = css.split("@font-face {").slice(1);
+  assert.equal(faceBlocks.length, expectedFonts.length);
+  for (const expectedFont of expectedFonts) {
+    const packageBytes = await readFile(expectedFont.packagePath);
+
+    const face = faceBlocks.find((block) =>
+      block.includes(`font-family: "${expectedFont.family}";`),
     );
-
-    const faceBlocks = css.split("@font-face {").slice(1);
-    assert.equal(faceBlocks.length, expectedFonts.length);
-    for (const expectedFont of expectedFonts) {
-      const installedPath = path.join(fontDirectory, expectedFont.filename);
-      const [packageBytes, installedBytes] = await Promise.all([
-        readFile(expectedFont.packagePath),
-        readFile(installedPath),
-      ]);
-      assert.deepEqual(installedBytes, packageBytes);
-
-      const face = faceBlocks.find((block) =>
-        block.includes(`font-family: "${expectedFont.family}";`),
-      );
-      assert.notEqual(face, undefined);
-      const encoded = face.match(/data:font\/woff2;base64,([^"\)]+)/u)?.[1];
-      assert.notEqual(encoded, undefined);
-      assert.deepEqual(Buffer.from(encoded, "base64"), packageBytes);
-
-      const scanRule =
-        `<string>${installedPath}</string>\n` +
-        `    </test>\n` +
-        `    <edit name="family" mode="assign">\n` +
-        `      <string>${expectedFont.family}</string>`;
-      assert.ok(config.includes(scanRule));
-    }
-  } finally {
-    await rm(directory, { recursive: true, force: true });
+    assert.notEqual(face, undefined);
+    const encoded = face.match(/data:font\/woff2;base64,([^"\)]+)/u)?.[1];
+    assert.notEqual(encoded, undefined);
+    assert.deepEqual(Buffer.from(encoded, "base64"), packageBytes);
   }
 });
 
@@ -104,6 +73,20 @@ test("registry exposes the five canonical examples", async () => {
       "cache-lookup-icons",
       "voortman-fullstack-deploy-icons",
     ],
+  );
+});
+
+test("preview sources stay repository-local and receive every locked icon pack", async () => {
+  const examples = await readRegistry();
+  assert.deepEqual(createPreviewExample("docs/diagrams/swe-loop.mmd", examples), {
+    id: "swe-loop",
+    icon_packs: ["@iconify-json/logos", "@iconify-json/mdi"],
+    rendering: "icon",
+    source: "docs/diagrams/swe-loop.mmd",
+  });
+  assert.throws(
+    () => createPreviewExample("../outside.mmd", examples),
+    /Path escapes repository root/,
   );
 });
 
@@ -191,4 +174,16 @@ test("byte comparison accepts current output and rejects stale output", async ()
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("aggregate failures retain every nested error in CLI output", () => {
+  const formatted = formatError(
+    new AggregateError(
+      [new Error("render failed"), new Error("page close failed")],
+      "render and cleanup failed",
+    ),
+  );
+  assert.match(formatted, /render and cleanup failed/u);
+  assert.match(formatted, /Aggregate member 1:\nError: render failed/u);
+  assert.match(formatted, /Aggregate member 2:\nError: page close failed/u);
 });
