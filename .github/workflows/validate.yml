@@ -7,15 +7,30 @@ on:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: tools/diagrams/.node-version
+          cache: npm
+          cache-dependency-path: tools/diagrams/package-lock.json
+
+      - name: Install locked diagram renderer
+        working-directory: tools/diagrams
+        run: npm ci
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Run structural manifest/skill validation
+      - name: Run repository structural validation
         run: uv run tools/validate.py
+
+      - name: Check canonical Mermaid renders
+        working-directory: tools/diagrams
+        run: npm run diagrams:check
 
       - name: Run validator test suite
         run: uv run pytest -q
