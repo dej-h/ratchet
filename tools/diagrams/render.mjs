@@ -185,7 +185,7 @@ function requiredOutput(outputs, key) {
   return output;
 }
 
-async function compareFiles(firstPath, secondPath, context) {
+export async function compareFiles(firstPath, secondPath, context) {
   const [first, second] = await Promise.all([readFile(firstPath), readFile(secondPath)]);
   if (!first.equals(second)) {
     throw new Error(`${context}: rendered SVG bytes differ`);
