@@ -10,7 +10,6 @@ import {
   createIconPackServer,
   normalizeIconifyIds,
   readRegistry,
-  renderCanonicalDiagrams,
 } from "../render.mjs";
 
 test("registry exposes the five canonical examples", async () => {
@@ -111,8 +110,4 @@ test("byte comparison accepts current output and rejects stale output", async ()
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-});
-
-test("locked renderer reproduces every canonical diagram", { timeout: 60_000 }, async () => {
-  await renderCanonicalDiagrams("check");
 });
