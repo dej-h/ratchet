@@ -1,6 +1,11 @@
 {
   "theme": "dark",
+  "deterministicIds": true,
+  "deterministicIDSeed": "ratchet-canonical",
+  "handDrawnSeed": 17,
+  "fontFamily": "Ratchet Inter",
   "themeVariables": {
+    "fontFamily": "Ratchet Inter",
     "titleColor": "#2b2200"
   }
 }

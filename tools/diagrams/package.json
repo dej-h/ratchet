@@ -1,0 +1,16 @@
+{
+  "name": "ratchet-diagram-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "diagrams:write": "node render.mjs --write",
+    "diagrams:check": "node render.mjs --check",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@iconify-json/logos": "^1.2.11",
+    "@iconify-json/mdi": "^1.2.3",
+    "@mermaid-js/mermaid-cli": "^11.16.0"
+  }
+}
