@@ -456,17 +456,26 @@ def _parse_class_assignments(source: str) -> dict[str, set[str]]:
 
 def _mask_quoted_text(source: str) -> list[str]:
     """Preserve source layout while hiding text that cannot contain an edge."""
-    masked: list[str] = []
+    masked_lines: list[str] = []
     inside_quote = False
-    for character in source:
-        if character == '"':
-            inside_quote = not inside_quote
-            masked.append(" ")
-        elif inside_quote and character != "\n":
-            masked.append(" ")
-        else:
-            masked.append(character)
-    return "".join(masked).splitlines()
+    for line in source.splitlines():
+        masked_line: list[str] = []
+        index = 0
+        while index < len(line):
+            if not inside_quote and line.startswith("%%", index):
+                masked_line.extend(" " * (len(line) - index))
+                break
+            character = line[index]
+            if character == '"':
+                inside_quote = not inside_quote
+                masked_line.append(" ")
+            elif inside_quote:
+                masked_line.append(" ")
+            else:
+                masked_line.append(character)
+            index += 1
+        masked_lines.append("".join(masked_line))
+    return masked_lines
 
 
 def _check_source_contract(example: CanonicalExample, source: str) -> list[str]:
@@ -494,8 +503,7 @@ def _check_source_contract(example: CanonicalExample, source: str) -> list[str]:
     for line_number, (line, masked_line) in enumerate(
         zip(source.splitlines(), masked_lines, strict=True), 1
     ):
-        uncommented = masked_line.split("%%", 1)[0]
-        if EDGE_OPERATOR_RE.search(uncommented) is None:
+        if EDGE_OPERATOR_RE.search(masked_line) is None:
             continue
         match = EDGE_RE.fullmatch(line)
         if match is None:

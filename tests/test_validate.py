@@ -299,6 +299,20 @@ class TestCanonicalSourceContract:
             for finding in findings
         )
 
+    def test_comment_quote_cannot_hide_alternate_edge(self, repo: Path) -> None:
+        source = (
+            'graph LR\n    A["A"]\n    B["B"]\n    C["C"]\n    D["D"]\n'
+            '    A -->|"calls"| B\n'
+            '    %% unmatched comment quote: "\n'
+            "    C --- D\n"
+        )
+        set_source(repo, source)
+        findings = run_checks(repo)
+        assert any(
+            "edge must be one labeled unidirectional source line" in finding
+            for finding in findings
+        )
+
     def test_inline_class_is_reported(self, repo: Path) -> None:
         set_source(
             repo,
