@@ -58,8 +58,8 @@ uv run tools/validate.py          # manifests, skills, ADRs, and canonical Merma
 uv run pytest -q                  # repository validator tests
 cd tools/diagrams
 npm ci                            # exact Node and package versions are locked in this directory
-npm test                          # renderer and five-example corpus contracts
-npm run diagrams:check            # committed icon SVGs match two deterministic renders
+npm test                          # renderer units and five-example corpus contract
+npm run diagrams:check            # one full render; committed icon SVGs match both passes
 ```
 
 CI (`.github/workflows/validate.yml`) runs the structural validator, both test

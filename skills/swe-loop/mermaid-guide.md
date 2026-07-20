@@ -295,19 +295,21 @@ npm run diagrams:write
 npm run diagrams:check
 ```
 
-Add the source, dark/light configs, output paths, and Iconify packages to
-`docs/diagrams/canonical-examples.json` before regenerating. The write command
-renders every registered example twice, rejects unresolved icon placeholders,
-and only then replaces committed icon SVGs. The check command repeats that
-process and requires byte-identical committed artifacts.
+Install each new Iconify package through the resolver from `tools/diagrams`
+(for example, `npm install --save-dev @iconify-json/mdi`), then add its package
+name plus the source, dark/light configs, and output paths to
+`docs/diagrams/canonical-examples.json`. The write command renders every
+registered example twice, rejects unresolved icon placeholders, and only then
+replaces committed icon SVGs. The check command repeats that process and
+requires byte-identical committed artifacts.
 
 Use flowchart icon-shape syntax: `A@{ shape: icon, icon: "mdi:account",
 label: "Browser", pos: "t" }`. Prefix convention: `mdi:` (Material Design
 Icons) for generic concepts such as person, database, server, and checkmark;
 `logos:` for real product/vendor logos when the diagram is specifically about
 a tech stack. Every prefix used in the source needs its matching package in
-`--iconPacks`. Do not mix prefixes for the same kind of thing across one
-diagram.
+`tools/diagrams/package.json` and the registry entry's `icon_packs` field. Do
+not mix prefixes for the same kind of thing across one diagram.
 
 Icon plus label replaces the structural shape vocabulary in this mode. The
 pair carries the type, so every icon must keep its text label and the same
