@@ -35,19 +35,17 @@ jobs:
 
       - name: Regenerate runner renders after drift
         if: failure() && steps.diagram_check.outcome == 'failure'
+        id: diagram_diagnostic
         working-directory: tools/diagrams
-        run: npm run diagrams:write
+        run: npm run diagrams:diagnose -- "${RUNNER_TEMP}/canonical-diagram-renders"
 
       - name: Upload runner renders after drift
-        if: failure() && steps.diagram_check.outcome == 'failure'
+        if: failure() && steps.diagram_diagnostic.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: canonical-diagram-renders-${{ github.sha }}
-          path: |
-            docs/diagrams/cache-lookup-icons-dark.svg
-            docs/diagrams/cache-lookup-icons-light.svg
-            docs/diagrams/voortman-fullstack-deploy-icons-dark.svg
-            docs/diagrams/voortman-fullstack-deploy-icons-light.svg
+          path: ${{ runner.temp }}/canonical-diagram-renders
+          if-no-files-found: error
           retention-days: 7
 
       - name: Run diagram renderer contract tests

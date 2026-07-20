@@ -78,12 +78,21 @@ make repeated renders deterministic without changing icon geometry. The check
 command renders into a temporary directory and byte-compares icon-track output
 with the committed dark and light SVGs.
 
+Layout fonts are part of that boundary. A renderer-owned Fontconfig overlay
+aliases resolver-locked Inter and Noto Sans Symbols files under unique family
+names before Mermaid measures the graph, then embeds those same files in the
+SVG. This keeps Latin labels and circled step numbers independent of host
+fallback fonts.
+
 Chromium reports `No usable sandbox` on the GitHub-hosted Ubuntu 24.04 job. The
 renderer therefore passes a committed Puppeteer configuration containing only
 `--no-sandbox` when `CI` is exactly `true`. Ordinary local runs with `CI` unset
 retain Mermaid CLI's browser defaults. This exception is limited to the
 ephemeral documentation-rendering job and its complete policy is covered by a
-boundary test.
+boundary test. When artifact comparison fails, CI also asks the same renderer
+to write every registry-derived theme output into a dedicated runner-temp
+directory and uploads it only after that diagnostic render succeeds. Failed
+diagnostic rendering therefore cannot be mistaken for fresh runner output.
 
 - Pros: proves both the source-level rules and the generated-artifact
   contract. It addresses the exact known gap in ADR 003 at the trigger ADR

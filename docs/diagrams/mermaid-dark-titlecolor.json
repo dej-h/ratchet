@@ -3,9 +3,9 @@
   "deterministicIds": true,
   "deterministicIDSeed": "ratchet-canonical",
   "handDrawnSeed": 17,
-  "fontFamily": "Ratchet Inter",
+  "fontFamily": "Ratchet Inter, Ratchet Symbols",
   "themeVariables": {
-    "fontFamily": "Ratchet Inter",
+    "fontFamily": "Ratchet Inter, Ratchet Symbols",
     "titleColor": "#2b2200"
   }
 }
