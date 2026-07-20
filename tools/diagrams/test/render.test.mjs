@@ -6,11 +6,23 @@ import test from "node:test";
 
 import {
   assertNoIconPlaceholders,
+  ciPuppeteerArguments,
   compareFiles,
   createIconPackServer,
   normalizeIconifyIds,
   readRegistry,
 } from "../render.mjs";
+
+test("browser sandbox override is restricted to one CI policy", async () => {
+  assert.deepEqual(ciPuppeteerArguments(false), []);
+  const ciArguments = ciPuppeteerArguments(true);
+  assert.equal(ciArguments[0], "-p");
+  const configPath = ciArguments[1];
+  assert.equal(path.isAbsolute(configPath), true);
+  assert.equal(path.basename(configPath), "puppeteer-ci.json");
+  const policy = JSON.parse(await readFile(configPath, "utf8"));
+  assert.deepEqual(policy, { args: ["--no-sandbox"] });
+});
 
 test("registry exposes the five canonical examples", async () => {
   const examples = await readRegistry();

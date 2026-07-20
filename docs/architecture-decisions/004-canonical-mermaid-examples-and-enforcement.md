@@ -78,6 +78,13 @@ make repeated renders deterministic without changing icon geometry. The check
 command renders into a temporary directory and byte-compares icon-track output
 with the committed dark and light SVGs.
 
+Chromium reports `No usable sandbox` on the GitHub-hosted Ubuntu 24.04 job. The
+renderer therefore passes a committed Puppeteer configuration containing only
+`--no-sandbox` when `CI` is exactly `true`. Ordinary local runs with `CI` unset
+retain Mermaid CLI's browser defaults. This exception is limited to the
+ephemeral documentation-rendering job and its complete policy is covered by a
+boundary test.
+
 - Pros: proves both the source-level rules and the generated-artifact
   contract. It addresses the exact known gap in ADR 003 at the trigger ADR
   003 recorded.

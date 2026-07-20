@@ -138,6 +138,13 @@ function configFor(example, theme) {
   return example.configs?.[theme] ?? defaultConfigs[theme];
 }
 
+export function ciPuppeteerArguments(isCi = process.env.CI === "true") {
+  if (!isCi) {
+    return [];
+  }
+  return ["-p", path.join(toolRoot, "puppeteer-ci.json")];
+}
+
 export async function renderExample({ example, theme, output, fontCss, iconUrls }) {
   const mmdc = path.join(toolRoot, "node_modules/.bin/mmdc");
   await access(mmdc);
@@ -156,6 +163,7 @@ export async function renderExample({ example, theme, output, fontCss, iconUrls 
     fontCss,
     "-I",
     `ratchet-${example.id}-${theme}`,
+    ...ciPuppeteerArguments(),
     "--quiet",
   ];
   if ((example.icon_packs ?? []).length > 0) {
