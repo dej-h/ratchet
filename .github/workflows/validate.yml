@@ -29,8 +29,26 @@ jobs:
         run: uv run tools/validate.py
 
       - name: Check canonical Mermaid renders
+        id: diagram_check
         working-directory: tools/diagrams
         run: npm run diagrams:check
+
+      - name: Regenerate runner renders after drift
+        if: failure() && steps.diagram_check.outcome == 'failure'
+        working-directory: tools/diagrams
+        run: npm run diagrams:write
+
+      - name: Upload runner renders after drift
+        if: failure() && steps.diagram_check.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-diagram-renders-${{ github.sha }}
+          path: |
+            docs/diagrams/cache-lookup-icons-dark.svg
+            docs/diagrams/cache-lookup-icons-light.svg
+            docs/diagrams/voortman-fullstack-deploy-icons-dark.svg
+            docs/diagrams/voortman-fullstack-deploy-icons-light.svg
+          retention-days: 7
 
       - name: Run diagram renderer contract tests
         working-directory: tools/diagrams
