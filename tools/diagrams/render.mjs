@@ -59,7 +59,10 @@ export async function createIconPackServer(examples) {
       response.writeHead(404).end("not found");
       return;
     }
-    response.writeHead(200, { "content-type": "application/json" }).end(body);
+    response.writeHead(200, {
+      "access-control-allow-origin": "*",
+      "content-type": "application/json",
+    }).end(body);
   });
 
   await new Promise((resolve, reject) => {
@@ -82,7 +85,7 @@ export async function createIconPackServer(examples) {
   };
 }
 
-async function writeFontCss(directory) {
+export async function writeFontCss(directory) {
   const fontPath = path.join(
     toolRoot,
     "node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2",
@@ -163,6 +166,23 @@ export async function renderExample({ example, theme, output, fontCss, iconUrls 
     args.push("--iconPacksNamesAndUrls", ...selectedUrls);
   }
   await run(mmdc, args);
+  if (path.extname(output) === ".svg") {
+    await normalizeIconifyIds(output);
+  }
+}
+
+export async function normalizeIconifyIds(svgPath) {
+  const svg = await readFile(svgPath, "utf8");
+  const replacements = new Map();
+  const normalized = svg.replace(/\bIconifyId[A-Za-z0-9]+\b/gu, (identifier) => {
+    if (!replacements.has(identifier)) {
+      replacements.set(identifier, `ratchet-icon-definition-${replacements.size + 1}`);
+    }
+    return replacements.get(identifier);
+  });
+  if (normalized !== svg) {
+    await writeFile(svgPath, normalized);
+  }
 }
 
 async function renderPass(examples, directory, fontCss, iconUrls) {
@@ -171,6 +191,9 @@ async function renderPass(examples, directory, fontCss, iconUrls) {
     for (const theme of ["dark", "light"]) {
       const output = path.join(directory, `${example.id}-${theme}.svg`);
       await renderExample({ example, theme, output, fontCss, iconUrls });
+      if (example.rendering === "icon") {
+        await assertNoIconPlaceholders(output, `${example.id}:${theme}`);
+      }
       outputs.set(`${example.id}:${theme}`, output);
     }
   }
@@ -189,6 +212,13 @@ export async function compareFiles(firstPath, secondPath, context) {
   const [first, second] = await Promise.all([readFile(firstPath), readFile(secondPath)]);
   if (!first.equals(second)) {
     throw new Error(`${context}: rendered SVG bytes differ`);
+  }
+}
+
+export async function assertNoIconPlaceholders(svgPath, context) {
+  const svg = await readFile(svgPath, "utf8");
+  if (/<tspan\b[^>]*>\s*\?\s*<\/tspan>/u.test(svg)) {
+    throw new Error(`${context}: rendered SVG contains an unresolved icon placeholder`);
   }
 }
 

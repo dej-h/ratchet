@@ -1,8 +1,10 @@
 """Structural CI validator for the ratchet plugin repo.
 
 Checks the things that are cheap to check deterministically and stdlib-only:
-manifests parse, the four manifests agree on plugin name and version, and
-every shipped SKILL.md carries the required frontmatter.
+manifests parse, the four manifests agree on plugin name and version, every
+shipped SKILL.md carries the required frontmatter, and registered canonical
+Mermaid sources, guide projections, and committed icon renders honor their
+restricted contract.
 
 This is deliberately NOT a substitute for the real per-harness validators.
 Run ``claude plugin validate .`` locally before tagging a release - it is
@@ -55,14 +57,22 @@ EDGE_RE = re.compile(
     r'^\s*([A-Za-z][A-Za-z0-9_]*)\s+(-->|-\.->)\|"([^"]+)"\|\s+'
     r"([A-Za-z][A-Za-z0-9_]*)\s*$"
 )
+EDGE_CANDIDATE_RE = re.compile(
+    r"^\s*[A-Za-z][A-Za-z0-9_]*\s*"
+    r"(?P<operator>(?=[<>=.~ox-]*[<>=.~-])[<>=.~ox-]{2,})"
+)
 NODE_DECLARATION_RE = re.compile(r"^\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:@\{|\[|\(|\{)")
 CLASS_DEF_RE = re.compile(r"^\s*classDef\s+([A-Za-z][A-Za-z0-9_]*)\s+(.+?)\s*$")
 CLASS_ASSIGNMENT_RE = re.compile(
     r"^\s*class\s+([A-Za-z][A-Za-z0-9_,]*)\s+([A-Za-z][A-Za-z0-9_]*)\s*$"
 )
 ICON_NODE_RE = re.compile(r"^\s*([A-Za-z][A-Za-z0-9_]*)@\{\s*(.+)\s*\}\s*$")
+ICON_NODE_CANDIDATE_RE = re.compile(r"^\s*([A-Za-z][A-Za-z0-9_]*)@\{")
 ICON_ATTRIBUTE_RE = re.compile(r'([A-Za-z][A-Za-z0-9_]*)\s*:\s*"([^"]*)"')
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
+UNRESOLVED_ICON_SVG_RE = re.compile(
+    r"<tspan\b[^>]*>\s*\?\s*</tspan>", re.IGNORECASE
+)
 
 
 class ValidationError(Exception):
@@ -467,7 +477,7 @@ def _check_source_contract(example: CanonicalExample, source: str) -> list[str]:
     step_numbers: set[int] = set()
     edge_count = 0
     for line_number, line in enumerate(source.splitlines(), 1):
-        if "-->" not in line and "-.->" not in line:
+        if EDGE_CANDIDATE_RE.match(line) is None:
             continue
         match = EDGE_RE.fullmatch(line)
         if match is None:
@@ -485,6 +495,20 @@ def _check_source_contract(example: CanonicalExample, source: str) -> list[str]:
                 )
             else:
                 step_numbers.add(step)
+
+    for line_number, line in enumerate(source.splitlines(), 1):
+        if ":::" in line:
+            findings.append(
+                f"{prefix}:{line_number}: inline class syntax is outside the canonical grammar"
+            )
+        if line.lstrip().startswith("class ") and CLASS_ASSIGNMENT_RE.fullmatch(line) is None:
+            findings.append(
+                f"{prefix}:{line_number}: class assignment must name nodes and one class"
+            )
+        if ICON_NODE_CANDIDATE_RE.match(line) and ICON_NODE_RE.fullmatch(line) is None:
+            findings.append(
+                f"{prefix}:{line_number}: icon node must use one standalone canonical declaration"
+            )
 
     if not edge_count:
         findings.append(f"{prefix}: canonical example must contain at least one edge")
@@ -628,10 +652,15 @@ def _check_declared_files(example: CanonicalExample, repo_root: Path) -> list[st
             if not full_path.is_file():
                 findings.append(f"{example.identifier}: missing {theme} {kind}: {path}")
                 continue
-            if kind == "render" and not full_path.read_text(
-                encoding="utf-8", errors="ignore"
-            ).lstrip().startswith("<svg"):
-                findings.append(f"{example.identifier}: {theme} render is not an SVG: {path}")
+            if kind == "render":
+                rendered_svg = full_path.read_text(encoding="utf-8", errors="ignore")
+                if not rendered_svg.lstrip().startswith("<svg"):
+                    findings.append(f"{example.identifier}: {theme} render is not an SVG: {path}")
+                elif UNRESOLVED_ICON_SVG_RE.search(rendered_svg):
+                    findings.append(
+                        f"{example.identifier}: {theme} render contains an unresolved "
+                        f"icon placeholder: {path}"
+                    )
     return findings
 
 

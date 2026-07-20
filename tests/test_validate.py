@@ -265,6 +265,37 @@ class TestCanonicalSourceContract:
             for finding in findings
         )
 
+    @pytest.mark.parametrize(
+        "operator", ["---", "==>", "~~~", "o--o", "--x", "<-->"]
+    )
+    def test_alternate_edge_operator_is_reported(self, repo: Path, operator: str) -> None:
+        set_source(repo, f'graph LR\n    A["A"]\n    B["B"]\n    A {operator} B\n')
+        findings = run_checks(repo)
+        assert any(
+            "edge must be one labeled unidirectional source line" in finding
+            for finding in findings
+        )
+
+    def test_inline_class_is_reported(self, repo: Path) -> None:
+        set_source(
+            repo,
+            'graph LR\n    A["A"]:::success\n    B["B"]\n    A -->|"calls"| B\n',
+        )
+        findings = run_checks(repo)
+        assert any("inline class syntax is outside" in finding for finding in findings)
+
+    def test_multiple_classes_are_reported(self, repo: Path) -> None:
+        source = (
+            'graph LR\n    A["A"]\n    B["B"]\n    A -->|"① calls"| B\n'
+            "    class B success,blocked\n" + PALETTE
+        )
+        set_narrative_mode(repo, source, ["success"])
+        findings = run_checks(repo)
+        assert any(
+            "class assignment must name nodes and one class" in finding
+            for finding in findings
+        )
+
     def test_undeclared_node_is_reported(self, repo: Path) -> None:
         set_source(repo, 'graph LR\n    A["A"]\n    A -->|"calls"| Missing\n')
         findings = run_checks(repo)
@@ -419,6 +450,52 @@ class TestCanonicalProjectionAndIconMode:
         findings = run_checks(repo)
         assert any("missing dark config" in finding for finding in findings)
         assert any("missing light render" in finding for finding in findings)
+
+    def test_unresolved_icon_artifact_is_reported(self, repo: Path) -> None:
+        source = (
+            "graph LR\n"
+            '    A@{ shape: icon, icon: "mdi:account", label: "User" }\n'
+            '    B@{ shape: icon, icon: "mdi:server", label: "Server" }\n'
+            '    A -->|"① call"| B\n' + PALETTE
+        )
+        set_source(repo, source, sync_guide=False)
+        guide = repo / "skills" / "swe-loop" / "mermaid-guide.md"
+        guide.write_text(
+            '<!-- canonical-mermaid: example -->\n<picture>\n'
+            '<source media="(prefers-color-scheme: dark)" '
+            'srcset="../../docs/diagrams/example-dark.svg">\n'
+            '<img src="../../docs/diagrams/example-light.svg" alt="Example">\n'
+            "</picture>\n"
+        )
+        diagrams = repo / "docs" / "diagrams"
+        (diagrams / "dark.json").write_text("{}")
+        (diagrams / "light.json").write_text("{}")
+        (diagrams / "example-dark.svg").write_text(
+            '<svg><tspan x="0" y="0">?</tspan></svg>'
+        )
+        (diagrams / "example-light.svg").write_text("<svg></svg>")
+
+        def make_icon(registry: dict) -> None:
+            example = registry["examples"][0]
+            example["archetype"] = "narrative"
+            example["rendering"] = "icon"
+            example["required_classes"] = []
+            example["icon_packs"] = ["@iconify-json/mdi"]
+            example["configs"] = {
+                "dark": "docs/diagrams/dark.json",
+                "light": "docs/diagrams/light.json",
+            }
+            example["renders"] = {
+                "dark": "docs/diagrams/example-dark.svg",
+                "light": "docs/diagrams/example-light.svg",
+            }
+
+        rewrite_json(registry_path(repo), make_icon)
+        findings = run_checks(repo)
+        assert any(
+            "render contains an unresolved icon placeholder" in finding
+            for finding in findings
+        )
 
 
 class TestParseFrontmatter:
