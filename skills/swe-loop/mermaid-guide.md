@@ -20,8 +20,10 @@ arrows.
   "understand this layout" — mixing the two modes in one canvas is exactly
   what rule 1 below forbids.
 
-Both archetypes share the render-QA loop and the GitHub-safe syntax rule
-just below; nothing about rendering or shipping differs between them.
+Both archetypes share the GitHub-safe syntax and render-QA rules below.
+Rendering is a separate choice: GitHub-native mermaid is the default, while
+the opt-in icon track pre-renders and commits theme-specific SVGs. Choose the
+archetype first, then the rendering mode.
 
 ## Syntax: GitHub-safe only
 
@@ -79,6 +81,7 @@ Adapted from the platform threat model — actors, stroke-only trust
 boundaries (theme-safe), protocol-labeled edges, cylinder datastore, dotted
 external calls:
 
+<!-- canonical-mermaid: platform-threat-model -->
 ```mermaid
 graph LR
     User(["👤 Browser User"])
@@ -108,12 +111,10 @@ graph LR
 
 For "what happens, in order" instead of "what exists." Grounded in a
 decomposition of ByteByteGo's system-design diagrams (blog.bytebytego.com,
-youtube.com/@ByteByteGo) — widely regarded as the clearest public example of
-this mode — split into what's pure convention (this section) versus what
-requires a render-and-commit image pipeline (icons, sticker fills). Only the
-convention half is covered here; everything below renders natively in
-GitHub's inline mermaid, no extra tooling. The icon/sticker-fill half is
-deliberately separate scope, not addressed in this section.
+youtube.com/@ByteByteGo), split into pure convention (this section) and an
+optional render-and-commit pipeline (the icon track below). The conventions
+render natively in GitHub mermaid. The icon track can be applied to either
+archetype after that choice is made.
 
 ### Rules (all mandatory)
 
@@ -159,6 +160,7 @@ agree, never conflict) and `success` for the terminal close. Nothing here
 is a network call or an in-flight protocol message, so `transport` and
 `protocol` are correctly unused, not forced in for variety:
 
+<!-- canonical-mermaid: swe-loop -->
 ```mermaid
 graph TB
     Start(["👤 Dejan"])
@@ -184,17 +186,17 @@ graph TB
     memory updated"]
 
     Start -->|"① design"| P0
-    P0 --> GateA
-    GateA -->|"② approved"| P1
-    GateA -.->|"amend"| P0
-    P1 -->|"③ plan"| P2
-    P2 -->|"④ context"| P3
-    P3 -->|"⑤ implement"| P4
-    P4 -->|"⑥ test"| P5
-    P5 -->|"⑦ review"| P6
-    P6 -->|"⑧ verify"| GateB
-    GateB -->|"⑨ approved"| Done
-    GateB -.->|"fix"| P3
+    P0 -->|"② request approval"| GateA
+    GateA -->|"③ approved"| P1
+    GateA -->|"③ amend"| P0
+    P1 -->|"④ plan"| P2
+    P2 -->|"⑤ context"| P3
+    P3 -->|"⑥ implement"| P4
+    P4 -->|"⑦ test"| P5
+    P5 -->|"⑧ review"| P6
+    P6 -->|"⑨ verify"| GateB
+    GateB -->|"⑩ approved"| Done
+    GateB -->|"⑩ fix"| P3
 
     class GateA decision
     class GateB decision
@@ -207,13 +209,183 @@ graph TB
     classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
 ```
 
-Passed render QA (dark + light, mermaid-cli) before shipping: node text
+Passed render QA (dark + light, locked browser renderer) before shipping: node text
 stays legible in both themes because color is set explicitly per class
 rather than left to theme defaults — the same lesson ADR 001 learned about
 subgraph titles applies to node fills, with the fix being the opposite move
 (declare the color, don't omit it). Unclassed nodes (the six regular phase
 steps) use mermaid's own theme-adaptive default styling and need no
 explicit color at all — confirmed legible in both renders.
+
+### Canonical infrastructure example: automated full-stack review
+
+This example is grounded in `voortman-ai-sandbox/infrastructure` at commit
+`99baa4b2af97285cc50b3afaef4abe9bbd2ae12c`, specifically the relay,
+`review-listener.yml`, and deterministic result publisher. It shows the
+automated full-stack route only. Manual `workflow_dispatch` deliberately
+skips the branch-policy gate, so it is outside this scenario.
+
+Every palette class has a real job here: the webhook is transport; dispatch
+and pending status are protocol messages; relay, branch, security,
+full-stack, and AI decisions are gates; failed review is blocked; passing
+review is success. Source:
+[voortman-fullstack-review.mmd](../../docs/diagrams/voortman-fullstack-review.mmd).
+
+<!-- canonical-mermaid: voortman-fullstack-review -->
+```mermaid
+graph TB
+    Webhook["PR webhook"]
+    Relay{"Relay gate"}
+    Dispatch["Review dispatch"]
+    Pending["Pending status"]
+    Branch{"Branch gate"}
+    Security{"Security gate"}
+    FullStack{"Full-stack gate"}
+    Review{"AI review"}
+    Failed["Review failed"]
+    Passed["Review passed"]
+
+    Webhook -->|"① receive"| Relay
+    Relay -->|"② eligible"| Dispatch
+    Dispatch -->|"③ queue review"| Pending
+    Pending -->|"④ check policy"| Branch
+    Branch -->|"⑤ branch blocked"| Failed
+    Branch -->|"⑤ branch allowed"| Security
+    Security -->|"⑥ scans fail"| Failed
+    Security -->|"⑥ scans pass"| FullStack
+    FullStack -->|"⑦ verify fails"| Failed
+    FullStack -->|"⑦ verify passes"| Review
+    Review -->|"⑧ fail / human"| Failed
+    Review -->|"⑧ pass"| Passed
+
+    class Webhook transport
+    class Dispatch,Pending protocol
+    class Relay,Branch,Security,FullStack,Review decision
+    class Failed blocked
+    class Passed success
+
+    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
+    classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
+    classDef protocol  fill:#fff3bf,stroke:#e8a400,color:#5c4500
+    classDef blocked   fill:#ffe3e3,stroke:#e03131,color:#5c1a1a
+    classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
+```
+
+## Rendering mode: icon track (render-and-commit)
+
+The remaining 20% of the ByteByteGo look: real icons and pastel sticker
+fills. This is a rendering mode for structural or narrative diagrams, not a
+third archetype. GitHub's inline mermaid renderer registers no iconify packs,
+so icon shapes there show unresolved placeholder boxes, verified by rendering
+the same source with and without the flag below. This track exists to unlock
+icons anyway, by pre-rendering locally and committing the result. It is
+**opt-in and additive**. Reach for it only for diagrams meant as social or
+teaching objects (a README hero diagram, a flagship ADR); everything else
+stays plain GitHub-native mermaid per the rules above.
+
+**Icons need locally served icon packs, always.** Registered icon examples use
+the repository's locked renderer, which reads exact package versions from
+`tools/diagrams/package-lock.json`, serves their Iconify JSON from loopback,
+and supplies those URLs to Mermaid's icon-pack API:
+
+```bash
+cd tools/diagrams
+npm ci
+npm run diagrams:write
+npm run diagrams:check
+```
+
+Install each new Iconify package through the resolver from `tools/diagrams`
+(for example, `npm install --save-dev @iconify-json/mdi`), then add its package
+name plus the source, dark/light configs, and output paths to
+`docs/diagrams/canonical-examples.json`. The write command renders every
+registered example twice, rejects unresolved icon placeholders, and only then
+replaces committed icon SVGs. The check command repeats that process and
+requires byte-identical committed artifacts.
+
+Use flowchart icon-shape syntax: `A@{ shape: icon, icon: "mdi:account",
+label: "Browser", pos: "t" }`. Prefix convention: `mdi:` (Material Design
+Icons) for generic concepts such as person, database, server, and checkmark;
+`logos:` for real product/vendor logos when the diagram is specifically about
+a tech stack. Every prefix used in the source needs its matching package in
+`tools/diagrams/package.json` and the registry entry's `icon_packs` field. Do
+not mix prefixes for the same kind of thing across one diagram.
+
+Icon plus label replaces the structural shape vocabulary in this mode. The
+pair carries the type, so every icon must keep its text label and the same
+concept must use the same icon across the repo. The other structural and
+narrative rules still apply, including numbered edges, line-style semantics,
+node limits, and semantic color.
+
+**Sticker-fill containers need one extra config**, not just a `style` line.
+A pastel-filled subgraph (`style lookup fill:#f4f1e8,stroke:#4a4438,
+stroke-width:3px`; sticker fills, unlike structural boundaries, are allowed
+here because the render is pre-committed, not left to GitHub's live theme)
+has a title rendered in near-white text on **dark** renders regardless of
+the fill. This is the same root cause as the structural-boundary lesson above,
+recurring because mermaid's `-t dark` flag still governs cluster title
+color independent of `style`. Tested three fixes; only one worked without
+side effects:
+
+- `theme: "base"` full override broke everything else (every node turned
+  the theme's default accent color).
+- `themeVariables.clusterTextColor` had no effect (wrong variable name).
+- `themeVariables.titleColor` on top of `theme: "dark"` fixed exactly the
+  title, nothing else. This is `mermaid-dark-titlecolor.json` above:
+  ```json
+  {"theme": "dark", "themeVariables": {"titleColor": "#2b2200"}}
+  ```
+  Light-theme renders need no override. Default cluster title text is
+  already dark/legible against pastel fills there.
+
+Use a neutral sticker fill outside the five semantic palette hues. A sticker
+is grouping, not a protocol or state. On a light sticker in the dark render,
+bare icons inherit a low-contrast foreground. Give sticker-contained icons a
+filled form such as `form: "rounded"`; the worked example uses that form and
+passes visual inspection in both themes.
+
+**Commit three files per icon-track diagram:** the `.mmd` source and both
+theme renders. Sticker-fill diagrams also use the shared
+`mermaid-dark-titlecolor.json`; only the first such diagram introduces that
+config. Embed with GitHub's theme-aware picture tag. Paths are relative to
+the Markdown file containing the tag:
+
+```html
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/name-dark.svg">
+  <img src="docs/diagrams/name-light.svg" alt="description">
+</picture>
+```
+
+**Worked example:** a request's path through cache, DNS, and server,
+demonstrating icons, a sticker-fill container, and the narrative rules
+above (numbered edges, micro-copy) together. Source:
+[cache-lookup-icons.mmd](../../docs/diagrams/cache-lookup-icons.mmd).
+
+<!-- canonical-mermaid: cache-lookup-icons -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../docs/diagrams/cache-lookup-icons-dark.svg">
+  <img src="../../docs/diagrams/cache-lookup-icons-light.svg" alt="Browser icon connects through a numbered flow to a sticker-filled Cache Lookup container holding cache and DNS icons, then to a server icon, then to a checkmark loaded icon">
+</picture>
+
+**Canonical infrastructure icon example:** the fail-before-update full-stack
+deployment path from `voortman-ai-sandbox/infrastructure` at commit
+`99baa4b2af97285cc50b3afaef4abe9bbd2ae12c`. The exact tested SHA becomes a
+GHCR digest, that digest is imported into ACR without rebuilding, migrations
+run against the new digest while the current app image stays active, and the
+app rolls forward only after migration success. Source:
+[voortman-fullstack-deploy-icons.mmd](../../docs/diagrams/voortman-fullstack-deploy-icons.mmd).
+
+<!-- canonical-mermaid: voortman-fullstack-deploy-icons -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../docs/diagrams/voortman-fullstack-deploy-icons-dark.svg">
+  <img src="../../docs/diagrams/voortman-fullstack-deploy-icons-light.svg" alt="Numbered full-stack deployment flow from a GitHub main push through relay, tested digest, ACR import, migration and health gates to either failed or running status">
+</picture>
+
+The renderer contract is locked by `tools/diagrams/.node-version` and
+`package-lock.json`. CI runs the structural validator, renderer contract tests,
+and `npm run diagrams:check`, so source/config drift, nondeterministic output,
+an unresolved icon fallback, or a stale committed SVG fails the PR.
 
 ## Render QA — mandatory for every new or changed diagram
 
@@ -223,13 +395,18 @@ applies to frontends. Syntax that parses can still render illegibly (title
 washout, label-on-node overlap, clipped text at canvas edges, long crossing
 edges), and none of that is visible in the source text.
 
+For registered canonical diagrams, first run the locked write/check workflow
+above. For an exploratory unregistered source, install the same lockfile with
+`npm ci`, then use the same browser, fonts, configs, and locally served icon
+packs to create deterministic dark and light SVG previews outside the source
+tree:
+
 ```bash
-npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-dark.png  -t dark -b '#0d1117'
-npx -y @mermaid-js/mermaid-cli -i d.mmd -o d-light.png -b white
+npm run diagrams:preview -- docs/diagrams/example.mmd /tmp/diagram-preview
 ```
 
-(First run downloads a headless browser; cached afterward, renders take
-seconds.)
+Do not use a floating `npx` package version as evidence for a canonical
+artifact.
 
 Inspect BOTH images and check:
 
@@ -242,8 +419,8 @@ Inspect BOTH images and check:
    in TB), not floating at the far edge.
 
 Fix, re-render, repeat until every point passes; then run the self-check
-below on the final render. GitHub's exact theme differs slightly from
-mermaid-cli's, but every failure listed above reproduces in both.
+below on the final render. GitHub's exact theme differs slightly from the
+locked browser renderer's, but every failure listed above reproduces in both.
 
 ## Self-check before shipping a diagram
 

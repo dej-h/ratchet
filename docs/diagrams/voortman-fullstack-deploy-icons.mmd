@@ -1,0 +1,39 @@
+graph TB
+    Push@{ shape: icon, icon: "logos:github-icon", label: "Main push", pos: "t", form: "circle" }
+    Relay@{ shape: icon, icon: "mdi:shield-check", label: "Relay gate", pos: "t", form: "circle" }
+    Event@{ shape: icon, icon: "mdi:message-arrow-right", label: "Deploy event", pos: "t", form: "circle" }
+    Pending@{ shape: icon, icon: "mdi:clock-outline", label: "Pending status", pos: "t", form: "circle" }
+    Build@{ shape: icon, icon: "mdi:hammer-wrench", label: "Build gate", pos: "t", form: "circle" }
+    Digest@{ shape: icon, icon: "mdi:package-variant-closed", label: "GHCR digest", pos: "t", form: "circle" }
+    Import@{ shape: icon, icon: "logos:microsoft-azure", label: "ACR import", pos: "t", form: "circle" }
+    Migration@{ shape: icon, icon: "mdi:database-sync", label: "Migration gate", pos: "t", form: "circle" }
+    Failed@{ shape: icon, icon: "mdi:close-circle", label: "Deploy failed", pos: "t", form: "circle" }
+    Roll@{ shape: icon, icon: "mdi:rocket-launch", label: "Roll forward", pos: "t", form: "circle" }
+    Health@{ shape: icon, icon: "mdi:heart-pulse", label: "Health gate", pos: "t", form: "circle" }
+    Running@{ shape: icon, icon: "mdi:check-circle", label: "Running", pos: "t", form: "circle" }
+
+    Push -->|"① main push"| Relay
+    Relay -->|"② eligible"| Event
+    Event -->|"③ dispatch"| Pending
+    Pending -->|"④ exact SHA"| Build
+    Build -->|"⑤ build fails"| Failed
+    Build -->|"⑤ tested digest"| Digest
+    Digest -->|"⑥ import digest"| Import
+    Import -->|"⑦ new digest"| Migration
+    Migration -->|"⑧ migration fails"| Failed
+    Migration -->|"⑧ migration passes"| Roll
+    Roll -->|"⑨ update app"| Health
+    Health -->|"⑩ unhealthy"| Failed
+    Health -->|"⑩ healthy"| Running
+
+    class Push,Import transport
+    class Event,Pending protocol
+    class Relay,Build,Digest,Migration,Health decision
+    class Failed blocked
+    class Running success
+
+    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
+    classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
+    classDef protocol  fill:#fff3bf,stroke:#e8a400,color:#5c4500
+    classDef blocked   fill:#ffe3e3,stroke:#e03131,color:#5c1a1a
+    classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c

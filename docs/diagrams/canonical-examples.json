@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "examples": [
+    {
+      "id": "platform-threat-model",
+      "archetype": "structural",
+      "rendering": "github-native",
+      "source": "docs/diagrams/platform-threat-model.mmd",
+      "guide": {
+        "path": "skills/swe-loop/mermaid-guide.md",
+        "marker": "platform-threat-model"
+      },
+      "evidence": []
+    },
+    {
+      "id": "swe-loop",
+      "archetype": "narrative",
+      "rendering": "github-native",
+      "source": "docs/diagrams/swe-loop.mmd",
+      "guide": {
+        "path": "skills/swe-loop/mermaid-guide.md",
+        "marker": "swe-loop"
+      },
+      "evidence": [],
+      "required_classes": [
+        "decision",
+        "success"
+      ]
+    },
+    {
+      "id": "voortman-fullstack-review",
+      "archetype": "narrative",
+      "rendering": "github-native",
+      "source": "docs/diagrams/voortman-fullstack-review.mmd",
+      "guide": {
+        "path": "skills/swe-loop/mermaid-guide.md",
+        "marker": "voortman-fullstack-review"
+      },
+      "evidence": [
+        {
+          "repository": "voortman-ai-sandbox/infrastructure",
+          "revision": "99baa4b2af97285cc50b3afaef4abe9bbd2ae12c",
+          "paths": [
+            ".github/workflows/review-listener.yml",
+            "relay/function_app.py",
+            "relay/_classify.py",
+            "control-plane/src/control_plane/review/post_review_result.py"
+          ]
+        }
+      ],
+      "required_classes": [
+        "blocked",
+        "decision",
+        "protocol",
+        "success",
+        "transport"
+      ]
+    },
+    {
+      "id": "cache-lookup-icons",
+      "archetype": "narrative",
+      "rendering": "icon",
+      "source": "docs/diagrams/cache-lookup-icons.mmd",
+      "guide": {
+        "path": "skills/swe-loop/mermaid-guide.md",
+        "marker": "cache-lookup-icons"
+      },
+      "evidence": [],
+      "required_classes": [
+        "decision",
+        "success"
+      ],
+      "icon_packs": [
+        "@iconify-json/mdi"
+      ],
+      "configs": {
+        "dark": "docs/diagrams/mermaid-dark-titlecolor.json",
+        "light": "docs/diagrams/mermaid-light.json"
+      },
+      "renders": {
+        "dark": "docs/diagrams/cache-lookup-icons-dark.svg",
+        "light": "docs/diagrams/cache-lookup-icons-light.svg"
+      }
+    },
+    {
+      "id": "voortman-fullstack-deploy-icons",
+      "archetype": "narrative",
+      "rendering": "icon",
+      "source": "docs/diagrams/voortman-fullstack-deploy-icons.mmd",
+      "guide": {
+        "path": "skills/swe-loop/mermaid-guide.md",
+        "marker": "voortman-fullstack-deploy-icons"
+      },
+      "evidence": [
+        {
+          "repository": "voortman-ai-sandbox/infrastructure",
+          "revision": "99baa4b2af97285cc50b3afaef4abe9bbd2ae12c",
+          "paths": [
+            ".github/workflows/deploy-listener-fullstack.yml",
+            ".github/workflows/_reusable-fullstack-build.yml",
+            "relay/_classify.py"
+          ]
+        }
+      ],
+      "required_classes": [
+        "blocked",
+        "decision",
+        "protocol",
+        "success",
+        "transport"
+      ],
+      "icon_packs": [
+        "@iconify-json/logos",
+        "@iconify-json/mdi"
+      ],
+      "configs": {
+        "dark": "docs/diagrams/mermaid-dark.json",
+        "light": "docs/diagrams/mermaid-light.json"
+      },
+      "renders": {
+        "dark": "docs/diagrams/voortman-fullstack-deploy-icons-dark.svg",
+        "light": "docs/diagrams/voortman-fullstack-deploy-icons-light.svg"
+      }
+    }
+  ]
+}

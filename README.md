@@ -54,10 +54,16 @@ unexpectedly, that is the first place to look, not the skill content itself.
 
 ```
 claude plugin validate .          # authoritative check for the Claude Code side
-uv run tools/validate.py          # structural check: manifest consistency, SKILL.md frontmatter, ADR presence
+uv run tools/validate.py          # manifests, skills, ADRs, and canonical Mermaid contracts
+uv run pytest -q                  # repository validator tests
+cd tools/diagrams
+npm ci                            # exact Node and package versions are locked in this directory
+npm test                          # renderer units and five-example corpus contract
+npm run diagrams:check            # one full render; committed icon SVGs match both passes
 ```
 
-CI (`.github/workflows/validate.yml`) runs the second on every push and PR.
+CI (`.github/workflows/validate.yml`) runs the structural validator, both test
+suites, and the canonical render check on every push and PR.
 
 ## Status
 

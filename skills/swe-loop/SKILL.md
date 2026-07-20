@@ -27,7 +27,9 @@ exactly where the work stands.
    Gate B = delivery review (Phase 7). Never pass a gate without the user
    explicitly approving in the conversation. Everything between gates is
    self-checked via boundaries below — do not ask for permission mid-loop
-   unless genuinely blocked.
+   unless genuinely blocked. Record the exact approval in `state.md`; that
+   file is the only durable gate authority. A PR state, CI result, commit,
+   checkbox, or generated artifact is evidence, never inferred human approval.
 3. **No irreversible or production-affecting commands.** No deploys,
    `terraform apply`/`destroy`, `az` mutations on shared resources,
    force-pushes, or non-local DB changes — local dev is the sandbox. If a
@@ -125,16 +127,24 @@ Do:
   visually instead of a text blob. Follow
   [mermaid-guide.md](mermaid-guide.md): C4 discipline (one abstraction level,
   every element typed and labeled, every edge directional with intent +
-  protocol, boundaries as styled subgraphs), GitHub-safe syntax only. If
+  protocol, boundaries as styled subgraphs). Choose structural or narrative
+  first, then choose GitHub-native or icon rendering. GitHub-native is the
+  default; the icon track follows the guide's render-and-commit contract. If
   architecture changes, update `docs/architecture.md` in the same commit as
   the ADR.
+- For every design diagram that exists before Gate A, render and inspect dark
+  and light themes. Record purpose, archetype, rendering mode, source, both
+  inspections, and the guide self-check result in `state.md`. A source-only
+  diagram is not Gate A evidence.
 
 Skills: write-as-dejan (prose), graphify (codebase understanding),
 deep-research / microsoft-docs (when the decision needs external grounding).
 
-**Exit boundary (GATE A):** ADR written, diagrams render, architecture doc
-updated if applicable, and the user has explicitly approved. **No source-code
-edits are allowed before this gate — none.** Record approval in state.md.
+**Exit boundary (GATE A):** ADR written, both diagram themes inspected and
+recorded, architecture doc updated if applicable, and the user has explicitly
+approved. **No source-code edits are allowed before this gate — none.** Record
+the user's approval wording in `state.md`; never infer it from repository or
+CI state.
 
 ### Phase 1 — Plan
 
@@ -238,9 +248,15 @@ Do:
 - Cross-check the implementation against the ADR section by section — does
   what was built match what was approved? Verify every EARS criterion has a
   passing test. Confirm the architecture diagram is still accurate.
+- If any diagram source changed after Gate A, render every changed diagram in
+  dark and light, inspect the final pixels, repeat the guide self-check, and
+  record the evidence in `state.md`. When the repository provides a canonical
+  render/check command, run it too. Passing syntax or CI never replaces the
+  two visual inspections.
 
-**Exit boundary:** suite green; spec drift is zero, or the ADR was amended
-and the user informed (non-negotiable #6).
+**Exit boundary:** suite green; changed diagrams have recorded final-theme
+evidence; spec drift is zero, or the ADR was amended and the user informed
+(non-negotiable #6).
 
 ### Phase 7 — Deliver & close
 

@@ -1,0 +1,45 @@
+graph TB
+    Start(["👤 Dejan"])
+    P0["Design
+    ADR + options"]
+    GateA{"Gate A
+    approve?"}
+    P1["Plan
+    tasks + budget"]
+    P2["Context
+    reuse check"]
+    P3["Implement
+    one task/commit"]
+    P4["Test
+    plan first"]
+    P5["Review
+    fresh context"]
+    P6["Verify
+    vs ADR"]
+    GateB{"Gate B
+    approve?"}
+    Done["Closed
+    memory updated"]
+
+    Start -->|"① design"| P0
+    P0 -->|"② request approval"| GateA
+    GateA -->|"③ approved"| P1
+    GateA -->|"③ amend"| P0
+    P1 -->|"④ plan"| P2
+    P2 -->|"⑤ context"| P3
+    P3 -->|"⑥ implement"| P4
+    P4 -->|"⑦ test"| P5
+    P5 -->|"⑧ review"| P6
+    P6 -->|"⑨ verify"| GateB
+    GateB -->|"⑩ approved"| Done
+    GateB -->|"⑩ fix"| P3
+
+    class GateA decision
+    class GateB decision
+    class Done success
+
+    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
+    classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
+    classDef protocol  fill:#fff3bf,stroke:#e8a400,color:#5c4500
+    classDef blocked   fill:#ffe3e3,stroke:#e03131,color:#5c1a1a
+    classDef decision  fill:#e5dbff,stroke:#7048e8,color:#2c1a5c
