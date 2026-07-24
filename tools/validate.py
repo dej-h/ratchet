@@ -2,9 +2,10 @@
 
 Checks the things that are cheap to check deterministically and stdlib-only:
 manifests parse, the four manifests agree on plugin name and version, every
-shipped SKILL.md carries the required frontmatter, and registered canonical
-Mermaid sources, guide projections, and committed icon renders honor their
-restricted contract.
+shipped SKILL.md carries the required frontmatter, the SWE-loop workflow keeps
+its persisted ordering and artifact-ownership contracts, and registered
+canonical Mermaid sources, guide projections, and committed icon renders honor
+their restricted contract.
 
 This is deliberately NOT a substitute for the real per-harness validators.
 Run ``claude plugin validate .`` locally before tagging a release - it is
@@ -35,6 +36,11 @@ MANIFEST_PATHS = {
 }
 
 CANONICAL_REGISTRY_PATH = Path("docs/diagrams/canonical-examples.json")
+SWE_LOOP_SKILL_PATH = Path("skills/swe-loop/SKILL.md")
+STATE_TEMPLATE_PATH = Path("skills/swe-loop/templates/state.md")
+TEST_PLAN_TEMPLATE_PATH = Path("skills/swe-loop/templates/test-plan.md")
+EVIDENCE_TEMPLATE_PATH = Path("skills/swe-loop/templates/evidence.md")
+ADR_TEMPLATE_PATH = Path("skills/swe-loop/templates/adr.md")
 
 Archetype = Literal["structural", "narrative"]
 RenderingMode = Literal["github-native", "icon"]
@@ -72,6 +78,10 @@ REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 UNRESOLVED_ICON_SVG_RE = re.compile(
     r"<tspan\b[^>]*>\s*\?\s*</tspan>", re.IGNORECASE
 )
+AUTHOR_LOCAL_LOOP_RE = re.compile(
+    r"(?:~|/(?:home|Users)/[^/\s`]+)/\.claude/swe-loops/"
+)
+ADR_LOOP_FIELD_RE = re.compile(r"^\s*-\s+\*\*Loop:\*\*", re.MULTILINE)
 
 
 class ValidationError(Exception):
@@ -117,6 +127,14 @@ class CanonicalExample:
     icon_packs: tuple[str, ...]
     configs: ThemePaths | None
     renders: ThemePaths | None
+
+
+@dataclass(frozen=True)
+class ContractMarker:
+    """One stable phrase that represents a named workflow invariant."""
+
+    identifier: str
+    text: str
 
 
 def load_json(path: Path, repo_root: Path) -> dict[str, Any]:
@@ -257,6 +275,296 @@ def check_adr_exists(repo_root: Path) -> list[str]:
     if not adr_dir.exists() or not list(adr_dir.glob("*.md")):
         return ["no ADR found under docs/architecture-decisions/"]
     return []
+
+
+def _read_contract_document(repo_root: Path, path: Path) -> str:
+    """Read one required workflow document with a path-specific failure."""
+    full_path = repo_root / path
+    if not full_path.is_file():
+        raise ValidationError(f"{path}: required SWE-loop contract document is missing")
+    return full_path.read_text(encoding="utf-8")
+
+
+def _markdown_section(text: str, heading: str, path: Path) -> str:
+    """Return one exact Markdown section, bounded by its next peer heading."""
+    lines = text.splitlines()
+    matches = [index for index, line in enumerate(lines) if line == heading]
+    if len(matches) != 1:
+        raise ValidationError(
+            f"{path}: contract section '{heading}' must appear exactly once, found {len(matches)}"
+        )
+
+    start = matches[0]
+    heading_prefix = heading.partition(" ")[0]
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        if lines[index].startswith(f"{heading_prefix} "):
+            end = index
+            break
+    return "\n".join(lines[start:end])
+
+
+def _check_required_markers(
+    text: str,
+    path: Path,
+    markers: tuple[ContractMarker, ...],
+) -> list[str]:
+    """Report missing named markers without freezing surrounding prose."""
+    normalized_text = " ".join(text.split())
+    return [
+        f"{path}: contract '{marker.identifier}' is missing marker: {marker.text}"
+        for marker in markers
+        if " ".join(marker.text.split()) not in normalized_text
+    ]
+
+
+def _check_forbidden_markers(
+    text: str,
+    path: Path,
+    markers: tuple[ContractMarker, ...],
+) -> list[str]:
+    """Report phrases or headings that would restore a retired contract."""
+    normalized_text = " ".join(text.split())
+    return [
+        f"{path}: contract '{marker.identifier}' forbids marker: {marker.text}"
+        for marker in markers
+        if " ".join(marker.text.split()) in normalized_text
+    ]
+
+
+def _check_marker_order(
+    text: str,
+    path: Path,
+    contract_id: str,
+    markers: tuple[ContractMarker, ...],
+) -> list[str]:
+    """Require named markers to occur in the declared source order."""
+    findings = _check_required_markers(text, path, markers)
+    if findings:
+        return findings
+
+    normalized_text = " ".join(text.split())
+    positions = [normalized_text.index(" ".join(marker.text.split())) for marker in markers]
+    if positions != sorted(positions):
+        marker_ids = " -> ".join(marker.identifier for marker in markers)
+        return [f"{path}: contract '{contract_id}' must keep marker order: {marker_ids}"]
+    return []
+
+
+def check_swe_loop_contract(repo_root: Path) -> list[str]:
+    """Validate the compact-state, test-intent, and durable-ADR contracts."""
+    skill = _read_contract_document(repo_root, SWE_LOOP_SKILL_PATH)
+    state = _read_contract_document(repo_root, STATE_TEMPLATE_PATH)
+    test_plan = _read_contract_document(repo_root, TEST_PLAN_TEMPLATE_PATH)
+    evidence = _read_contract_document(repo_root, EVIDENCE_TEMPLATE_PATH)
+    adr_template = _read_contract_document(repo_root, ADR_TEMPLATE_PATH)
+
+    findings: list[str] = []
+    findings.extend(
+        _check_required_markers(
+            state,
+            STATE_TEMPLATE_PATH,
+            (
+                ContractMarker("state.cursor", "## Cursor"),
+                ContractMarker("state.profile", "- **Profile:**"),
+                ContractMarker("state.mode", "- **Mode:**"),
+                ContractMarker("state.repository", "- **Repo / branch:**"),
+                ContractMarker("state.status", "- **Status:**"),
+                ContractMarker("state.current-phase", "- **Current phase:**"),
+                ContractMarker("state.current-task", "- **Current task:**"),
+                ContractMarker("state.test-intent", "- **Test intent:**"),
+                ContractMarker("state.reviewed-sha", "- **Last reviewed SHA:**"),
+                ContractMarker("state.gate-authority", "## Gate authority"),
+                ContractMarker("state.gate-wording", "Exact user wording"),
+                ContractMarker("state.phase-status", "## Phase status"),
+                ContractMarker("state.task-status", "## Task status"),
+                ContractMarker("state.active-exceptions", "## Active exceptions"),
+                ContractMarker("state.evidence-references", "## Evidence references"),
+                ContractMarker("state.compaction", "## Compaction rule"),
+            ),
+        )
+    )
+    findings.extend(
+        _check_forbidden_markers(
+            state,
+            STATE_TEMPLATE_PATH,
+            (
+                ContractMarker("state.no-phase-checklist", "## Phase checklist"),
+                ContractMarker("state.no-diagram-diary", "## Diagram evidence"),
+                ContractMarker("state.no-reuse-diary", "## Reuse inventory"),
+                ContractMarker("state.no-decision-diary", "## Decision log"),
+                ContractMarker("state.no-zoomout-diary", "## Zoom-out findings"),
+            ),
+        )
+    )
+
+    gate_rows = re.findall(r"^\|\s*([A-Z])\s*\|", state, re.MULTILINE)
+    if gate_rows != ["A", "B"]:
+        findings.append(
+            f"{STATE_TEMPLATE_PATH}: contract 'state.exactly-two-gates' "
+            f"requires gate rows A and B only, found {gate_rows}"
+        )
+
+    findings.extend(
+        _check_required_markers(
+            evidence,
+            EVIDENCE_TEMPLATE_PATH,
+            (
+                ContractMarker("evidence.diagram", "## Diagram inspections"),
+                ContractMarker("evidence.review", "## Review findings"),
+                ContractMarker("evidence.verification", "## Verification"),
+                ContractMarker("evidence.revision", "Revision"),
+            ),
+        )
+    )
+    findings.extend(
+        _check_required_markers(
+            test_plan,
+            TEST_PLAN_TEMPLATE_PATH,
+            (
+                ContractMarker("test-plan.intent-status", "- **Intent status:**"),
+                ContractMarker("test-plan.execution-status", "- **Execution status:**"),
+                ContractMarker("test-plan.ears", "## Behaviors under test"),
+                ContractMarker("test-plan.edge-cases", "## Edge cases & failure modes"),
+                ContractMarker("test-plan.integrations", "## Integration surfaces"),
+                ContractMarker("test-plan.exclusions", "## Explicitly not tested"),
+                ContractMarker("test-plan.verification", "## Verification beyond tests"),
+                ContractMarker("test-plan.bugfix", "## Bugfix reproduction"),
+            ),
+        )
+    )
+
+    findings.extend(
+        _check_required_markers(
+            skill,
+            SWE_LOOP_SKILL_PATH,
+            (
+                ContractMarker("ownership.state", "`state.md`: compact execution cursor"),
+                ContractMarker("ownership.plan", "`plan.md`: task definitions"),
+                ContractMarker("ownership.test-plan", "`test-plan.md`: test intent"),
+                ContractMarker("ownership.evidence", "`evidence.md`: optional detailed"),
+                ContractMarker("ownership.delivery", "`pr-description.md`: Gate B summary"),
+                ContractMarker("resume.state-first", "read it first"),
+                ContractMarker(
+                    "resume.active-references",
+                    "active phase,\ncurrent task, or active exceptions",
+                ),
+                ContractMarker(
+                    "resume.no-history",
+                    "Do not load completed phase history by\ndefault.",
+                ),
+                ContractMarker("state.two-gates", "**Two human gates only.**"),
+            ),
+        )
+    )
+    findings.extend(
+        _check_forbidden_markers(
+            skill,
+            SWE_LOOP_SKILL_PATH,
+            (
+                ContractMarker(
+                    "ownership.no-state-diagram-detail",
+                    "guide self-check result in `state.md`",
+                ),
+                ContractMarker(
+                    "ownership.no-state-reuse-detail",
+                    "reuse inventory** into state.md",
+                ),
+                ContractMarker(
+                    "ownership.no-state-review-diary",
+                    "state.md\n  decision log",
+                ),
+                ContractMarker(
+                    "ownership.no-state-verification-detail",
+                    "record the evidence in `state.md`",
+                ),
+            ),
+        )
+    )
+
+    phase_four = _markdown_section(skill, "### Phase 4 — Test with intent", SWE_LOOP_SKILL_PATH)
+    findings.extend(
+        _check_marker_order(
+            phase_four,
+            SWE_LOOP_SKILL_PATH,
+            "phase4.persisted-test-intent",
+            (
+                ContractMarker("phase4.plan", "Write `test-plan.md` **first**"),
+                ContractMarker("phase4.persist-plan", "Persist `test-plan.md`"),
+                ContractMarker(
+                    "phase4.record-boundary",
+                    "record the completed test-intent boundary",
+                ),
+                ContractMarker(
+                    "phase4.edit-tests",
+                    "Only after both writes may test-code edits begin",
+                ),
+                ContractMarker("phase4.same-turn", "same agent turn may"),
+            ),
+        )
+    )
+    findings.extend(
+        _check_forbidden_markers(
+            phase_four,
+            SWE_LOOP_SKILL_PATH,
+            (
+                ContractMarker(
+                    "phase4.no-required-pause",
+                    "as a separate turn from implementation",
+                ),
+            ),
+        )
+    )
+
+    profiles = _markdown_section(skill, "## Profiles", SWE_LOOP_SKILL_PATH)
+    findings.extend(
+        _check_marker_order(
+            profiles,
+            SWE_LOOP_SKILL_PATH,
+            "bugfix.red-before-green",
+            (
+                ContractMarker("bugfix.plan", "persist `test-plan.md`"),
+                ContractMarker(
+                    "bugfix.state-boundary",
+                    "record the test-intent boundary",
+                ),
+                ContractMarker("bugfix.red", "reproduction test"),
+                ContractMarker("bugfix.fix", "production\n  fix"),
+                ContractMarker("bugfix.green", "passing run"),
+            ),
+        )
+    )
+
+    phase_zero = _markdown_section(skill, "### Phase 0 — Design (ADR)", SWE_LOOP_SKILL_PATH)
+    findings.extend(
+        _check_required_markers(
+            phase_zero,
+            SWE_LOOP_SKILL_PATH,
+            (
+                ContractMarker(
+                    "adr.local-path-state-only",
+                    "External loop paths\n  remain in `state.md`",
+                ),
+                ContractMarker(
+                    "adr.no-local-path",
+                    "never appear in the committed ADR",
+                ),
+            ),
+        )
+    )
+
+    adr_metadata = adr_template.partition("## Context")[0]
+    if ADR_LOOP_FIELD_RE.search(adr_metadata):
+        findings.append(
+            f"{ADR_TEMPLATE_PATH}: contract 'adr.no-loop-field' forbids a Loop metadata field"
+        )
+    if AUTHOR_LOCAL_LOOP_RE.search(adr_metadata) or "docs/loops/<slug>/" in adr_metadata:
+        findings.append(
+            f"{ADR_TEMPLATE_PATH}: contract 'adr.no-local-loop-reference' "
+            "forbids author-local loop paths in ADR metadata"
+        )
+
+    return findings
 
 
 def _require_mapping(value: object, context: str) -> dict[str, object]:
@@ -723,6 +1031,7 @@ def run_checks(repo_root: Path) -> list[str]:
         check_manifests_consistent,
         check_skill_frontmatter,
         check_adr_exists,
+        check_swe_loop_contract,
         check_canonical_diagrams,
     ):
         try:
@@ -742,7 +1051,10 @@ def main() -> int:
             print(f"  - {finding}")
         return 1
 
-    print("PASS: manifests, skills, ADRs, and canonical diagrams are structurally valid.")
+    print(
+        "PASS: manifests, skills, SWE-loop contracts, ADRs, and canonical diagrams "
+        "are structurally valid."
+    )
     print("Reminder: run 'claude plugin validate .' locally for the authoritative")
     print("Claude Code check - this script does not replace it.")
     return 0
