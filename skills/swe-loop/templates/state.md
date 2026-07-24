@@ -2,61 +2,82 @@
 
 Lives in `~/.claude/swe-loops/<repo>/<slug>/` — never inside the repo.
 
+## Cursor
+
 - **Profile:** feature | bugfix | db/migration | frontend | infra
 - **Mode:** branch (Gate B = PR) | workspace (Gate B = local diff + pr-description.md)
 - **Repo / branch:** <repo> @ <branch>
+- **Worktree:** <absolute path>
 - **Started:** <date>
 - **Status:** in progress | blocked | done
+- **Current phase:** <0-7 + name>
+- **Current boundary:** <next incomplete phase boundary>
+- **Current task:** <task ID + name | n/a>
+- **Next action:** <one concrete action>
 - **ADR:** <path>
+- **Last reviewed SHA:** pending | stale | <40-character SHA> (branch) | <base SHA> (workspace; pair with review evidence)
+- **Review evidence:** <evidence reference | pending>
 
-## Phase checklist
+## Gate authority
 
-- [ ] 0 Design — ADR written, diagram plan + dark/light evidence recorded, architecture doc updated
-- [ ] **GATE A — user approved design** (record date + wording)
-- [ ] 1 Plan — tasks defined (done-check + S/M class each); analyze check passed (ADR/EARS ↔ tasks coverage)
-- [ ] 2 Context — reuse inventory written (below)
-- [ ] 3 Implement — all tasks landed (committed / staged per mode), no unrelated churn, no mechanical+semantic mixing
-- [ ] 4 Test — test-plan.md written BEFORE tests; tests implemented
-- [ ] 5 Review — standards + correctness + zoom-out passes done, findings triaged
-- [ ] 6 Verify — full suite green, changed diagrams re-rendered/inspected, no drift from ADR
-- [ ] 7 Deliver — summary written (PR opened / pr-description.md per mode)
-- [ ] **GATE B — user approved** (PR or local diff; record date)
-- [ ] Close — memory/docs updated, loop done
+| Gate | Status | Date | Exact user wording | Approved revision |
+|---|---|---|---|---|
+| A | pending / approved | | | <ADR path + revision> |
+| B | pending / approved | | | <PR/SHA or workspace evidence> |
 
-## Task pointer
+Gate authority is never inferred from CI, a PR, a commit, a checkbox, or any
+other artifact. Preserve approved rows exactly during compaction.
 
-Current task: <n of N> — <name>
+## Phase status
 
-| # | Task | Class (S/M/generated) | Done-check | Status |
-|---|------|----------------------|-----------|--------|
-| 1 |      |                      |           |        |
+| Phase | Status | Result / evidence reference |
+|---|---|---|
+| 0 Design | pending / active / blocked / done | |
+| Gate A | pending / done | Gate authority row |
+| 1 Plan | pending / active / blocked / done | |
+| 2 Context | pending / active / blocked / done | |
+| 3 Implement | pending / active / blocked / done | |
+| 4 Test | pending / active / blocked / done | |
+| 5 Review | pending / active / blocked / done | |
+| 6 Verify | pending / active / blocked / done | |
+| 7 Deliver | pending / active / blocked / done | |
+| Gate B | pending / done | Gate authority row |
+| Close | pending / done | |
 
-## Diagram evidence
+## Task status
 
-Record every Phase 0 design diagram and every diagram source changed after
-Gate A. Use `n/a` only with the guide's explicit trivial/code-level reason.
+Task definitions, classes, and done-checks live in `plan.md`.
 
-| Artifact | Purpose | Archetype | Rendering mode | Source | Dark inspected | Light inspected | Self-check |
-|---|---|---|---|---|---|---|---|
-|   |       | structural / narrative | GitHub-native / icon | | | | |
+| ID | Status | Result / evidence reference |
+|---|---|---|
+| T1 | pending / active / blocked / done | |
 
-Gate A and Gate B approvals are recorded only in the phase checklist with the
-user's date and wording. CI, PR, commit, and artifact state never imply them.
+## Active exceptions
 
-## Reuse inventory (Phase 2)
+Keep unresolved findings and every active waiver. Move resolved detail to its
+owning evidence at the next phase transition.
 
-Existing functions / models / schemas this work uses or extends:
+| ID | Kind | Status | Summary | Evidence reference |
+|---|---|---|---|---|
+| | finding / waiver | unresolved / waived | | |
 
--
+## Evidence references
 
-## Decision log
+References must be durable loop paths, repository paths, or PR/CI/issue URLs.
+Do not point at terminal scrollback or temporary files.
 
-Deviations, waivers, amendments — with reasons:
+| Ref | Owner / purpose | Path or URL |
+|---|---|---|
+| ADR | approved design | |
+| PLAN | tasks, coverage, reuse inventory | `plan.md` |
+| TEST | test intent and results | `test-plan.md` |
+| EVIDENCE | optional diagram, review, and verification detail | `evidence.md` or n/a |
+| DELIVERY | reviewer-facing summary | PR URL or `pr-description.md` |
 
--
+## Compaction rule
 
-## Zoom-out findings (Phase 5 — recorded, NOT applied)
-
-Candidate future loops (refactors, test factories, architectural changes):
-
--
+At every phase transition, persist completed detail in its owning artifact,
+verify the reference exists, update the cursor and status tables, then remove
+copied commands, output, review narratives, ADR prose, and PR prose from this
+file. Never compact exact gate wording, task status, active findings, waivers,
+or the reviewed revision.
