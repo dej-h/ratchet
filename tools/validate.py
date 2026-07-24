@@ -271,9 +271,9 @@ def _read_contract_document(repo_root: Path, path: Path) -> str:
     return full_path.read_text(encoding="utf-8")
 
 
-def _markdown_headings(text: str) -> list[tuple[int, str]]:
-    """Return normalized ATX headings outside fenced code blocks."""
-    headings: list[tuple[int, str]] = []
+def _markdown_lines_outside_fences(text: str) -> list[tuple[int, str]]:
+    """Return non-code Markdown lines with their zero-based source positions."""
+    visible_lines: list[tuple[int, str]] = []
     fence_character: str | None = None
     fence_length = 0
     for index, line in enumerate(text.splitlines()):
@@ -298,6 +298,15 @@ def _markdown_headings(text: str) -> list[tuple[int, str]]:
             fence_length = len(opening.group(1))
             continue
 
+        visible_lines.append((index, line))
+    return visible_lines
+
+
+def _markdown_headings(text: str) -> list[tuple[int, str]]:
+    """Return normalized ATX headings outside fenced or indented code blocks."""
+    headings: list[tuple[int, str]] = []
+    for index, line in _markdown_lines_outside_fences(text):
+        stripped = line.lstrip(" ")
         match = re.match(
             r"^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$",
             stripped,
@@ -441,6 +450,7 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
     findings: list[str] = []
 
     expected_state_headings = (
+        "# Loop state: <slug>",
         "## Cursor", "## Gate authority", "### Gate A", "### Gate B",
         "## Phase status", "## Task status", "## Active exceptions",
         "## Evidence references", "## Compaction rule",
@@ -448,7 +458,6 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
     actual_state_headings = tuple(
         heading
         for _, heading in _markdown_headings(state)
-        if heading.startswith(("## ", "### "))
     )
     if actual_state_headings != expected_state_headings:
         findings.append(
@@ -569,14 +578,13 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
         )
 
     phase_four = _markdown_section(skill, "### Phase 4 — Test with intent", SWE_LOOP_SKILL_PATH)
-    phase_four_steps = [
-        (int(ordinal), label.removesuffix("."))
-        for ordinal, label in re.findall(
-            r"^(\d+)\.\s+\*\*([^*]+)\*\*",
-            phase_four,
-            re.MULTILINE,
-        )
-    ]
+    phase_four_steps: list[tuple[int, str]] = []
+    for _, line in _markdown_lines_outside_fences(phase_four):
+        match = re.match(r"^(\d+)\.\s+\*\*([^*]+)\*\*", line.lstrip(" "))
+        if match:
+            phase_four_steps.append(
+                (int(match.group(1)), match.group(2).removesuffix("."))
+            )
     required_steps = [
         (1, "Plan test intent"),
         (2, "Persist test intent"),

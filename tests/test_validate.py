@@ -330,6 +330,11 @@ class TestSweLoopContract:
             "## Reuse inventory",
             "## Decision log",
             "## Zoom-out findings",
+            "# Decision log",
+            "### Decision log",
+            "#### Decision log",
+            "##### Decision log",
+            "###### Decision log",
         ],
     )
     def test_diary_heading_is_reported(self, repo: Path, heading: str) -> None:
@@ -617,6 +622,21 @@ class TestSweLoopContract:
         for old, new in replacements:
             text = text.replace(old, new, 1)
         skill.write_text(text)
+        findings = run_checks(repo)
+        assert any("phase4.persisted-test-intent" in finding for finding in findings)
+
+    def test_fenced_test_intent_step_is_reported(self, repo: Path) -> None:
+        skill = repo / "skills" / "swe-loop" / "SKILL.md"
+        replace_once(
+            skill,
+            "1. **Plan test intent.** Write `test-plan.md` first:",
+            (
+                "```markdown\n"
+                "1. **Plan test intent.**\n"
+                "```\n\n"
+                "Plan test intent, then write `test-plan.md` first:"
+            ),
+        )
         findings = run_checks(repo)
         assert any("phase4.persisted-test-intent" in finding for finding in findings)
 
