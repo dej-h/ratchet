@@ -98,7 +98,9 @@ kebab-case name):
 - `pr-description.md`: Gate B summary in workspace mode
 
 Only **durable documentation** goes in the repo, because it belongs in the
-PR: the ADR and the architecture overview.
+PR: the ADR and the architecture overview. The author-local loop path belongs
+only in external `state.md`; never write it into a committed ADR or any other
+repository document.
 
 ADR location: `docs/architecture-decisions/NNN-<slug>.md` — create the
 directory if the repo lacks it. Template:
@@ -121,6 +123,8 @@ is the only durable approval authority.
 
 Do:
 - Restate the problem in one paragraph.
+- Create the ADR with durable repository metadata only. External loop paths
+  remain in `state.md` and never appear in the committed ADR.
 - Develop the *real* alternatives. For architectural decisions, spawn 2–3
   **fresh-context subagents in parallel, each independently developing a
   distinct approach** (e.g. minimal / clean-architecture / pragmatic) —
