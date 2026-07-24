@@ -343,6 +343,25 @@ class TestSweLoopContract:
         findings = run_checks(repo)
         assert any("state.sections" in finding for finding in findings)
 
+    @pytest.mark.parametrize("heading", ["## Cursor", "### Gate A"])
+    def test_indented_required_heading_is_accepted(
+        self,
+        repo: Path,
+        heading: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, heading, f"   {heading}")
+        assert run_checks(repo) == []
+
+    def test_heading_in_gate_wording_is_not_a_state_section(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "<verbatim user message | pending>",
+            "## Notes",
+        )
+        state.write_text(text)
+        assert run_checks(repo) == []
+
     def test_third_gate_block_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
         replace_once(state, "## Phase status", "### Gate C\n\n## Phase status")
@@ -375,7 +394,11 @@ class TestSweLoopContract:
         )
         state.write_text(text)
         findings = run_checks(repo)
-        assert any("state.gate-a.wording-block" in finding for finding in findings)
+        assert any(
+            contract_id in finding
+            for contract_id in ("state.sections", "state.gate-a.wording-block")
+            for finding in findings
+        )
 
     def test_unclosed_gate_wording_fence_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
@@ -386,7 +409,11 @@ class TestSweLoopContract:
         )
         state.write_text(text)
         findings = run_checks(repo)
-        assert any("state.gate-a.wording-block" in finding for finding in findings)
+        assert any(
+            contract_id in finding
+            for contract_id in ("state.sections", "state.gate-a.wording-block")
+            for finding in findings
+        )
 
     def test_reversed_gate_wording_fence_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
@@ -397,7 +424,11 @@ class TestSweLoopContract:
         )
         state.write_text(text)
         findings = run_checks(repo)
-        assert any("state.gate-a.wording-block" in finding for finding in findings)
+        assert any(
+            contract_id in finding
+            for contract_id in ("state.sections", "state.gate-a.wording-block")
+            for finding in findings
+        )
 
     def test_gate_wording_fence_before_field_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"

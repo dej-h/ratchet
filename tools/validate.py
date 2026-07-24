@@ -271,20 +271,54 @@ def _read_contract_document(repo_root: Path, path: Path) -> str:
     return full_path.read_text(encoding="utf-8")
 
 
+def _markdown_headings(text: str) -> list[tuple[int, str]]:
+    """Return normalized ATX headings outside fenced code blocks."""
+    headings: list[tuple[int, str]] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for index, line in enumerate(text.splitlines()):
+        stripped = line.lstrip(" ")
+        indentation = len(line) - len(stripped)
+        if indentation > 3:
+            continue
+
+        if fence_character is not None:
+            closing = re.fullmatch(
+                rf"{re.escape(fence_character)}{{{fence_length},}}\s*",
+                stripped,
+            )
+            if closing:
+                fence_character = None
+                fence_length = 0
+            continue
+
+        opening = re.match(r"(`{3,}|~{3,})", stripped)
+        if opening:
+            fence_character = opening.group(1)[0]
+            fence_length = len(opening.group(1))
+            continue
+
+        match = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", stripped)
+        if match:
+            headings.append((index, f"{match.group(1)} {match.group(2)}"))
+    return headings
+
+
 def _markdown_section(text: str, heading: str, path: Path) -> str:
-    """Return one exact Markdown section, bounded by its next peer heading."""
+    """Return one normalized Markdown section, bounded by its next peer."""
     lines = text.splitlines()
-    matches = [index for index, line in enumerate(lines) if line == heading]
+    headings = _markdown_headings(text)
+    matches = [index for index, normalized in headings if normalized == heading]
     if len(matches) != 1:
         raise ValidationError(
             f"{path}: contract section '{heading}' must appear exactly once, found {len(matches)}"
         )
 
     start = matches[0]
-    heading_prefix = heading.partition(" ")[0]
+    heading_level = len(heading.partition(" ")[0])
     end = len(lines)
-    for index in range(start + 1, len(lines)):
-        if lines[index].startswith(f"{heading_prefix} "):
+    for index, normalized in headings:
+        if index > start and len(normalized.partition(" ")[0]) == heading_level:
             end = index
             break
     return "\n".join(lines[start:end])
@@ -397,9 +431,9 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
         "## Evidence references", "## Compaction rule",
     )
     actual_state_headings = tuple(
-        match.group(1)
-        for line in state.splitlines()
-        if (match := re.match(r"^ {0,3}(#{2,3}\s+.+?)\s*$", line))
+        heading
+        for _, heading in _markdown_headings(state)
+        if heading.startswith(("## ", "### "))
     )
     if actual_state_headings != expected_state_headings:
         findings.append(
