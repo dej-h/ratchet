@@ -326,17 +326,23 @@ class TestSweLoopContract:
         findings = run_checks(repo)
         assert any("state.sections" in finding for finding in findings)
 
+    def test_unknown_third_level_state_section_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        state.write_text(f"{state.read_text()}\n### Decision log\n")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
     def test_third_gate_block_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
         replace_once(state, "## Phase status", "### Gate C\n\n## Phase status")
         findings = run_checks(repo)
-        assert any("state.exactly-two-gates" in finding for finding in findings)
+        assert any("state.sections" in finding for finding in findings)
 
     def test_differently_named_third_gate_block_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
         replace_once(state, "## Phase status", "### Approval C\n\n## Phase status")
         findings = run_checks(repo)
-        assert any("state.exactly-two-gates" in finding for finding in findings)
+        assert any("state.sections" in finding for finding in findings)
 
     def test_missing_gate_field_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
@@ -519,6 +525,7 @@ class TestSweLoopContract:
             "** Loop : ** external\n",
             "- *Loop*: external\n",
             "- `Loop`: external\n",
+            "+ **Loop:** external\n",
             "Loop: external\n",
         ],
     )

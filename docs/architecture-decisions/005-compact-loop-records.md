@@ -156,7 +156,7 @@ the instructions.
 
 ```mermaid
 graph LR
-    Agent["Coding Agent<br/>[Agent]"]
+    Agent(["Coding Agent<br/>[Agent]"])
 
     subgraph loop["External Loop Directory"]
         State["state.md

@@ -376,7 +376,7 @@ def _metadata_field_names(metadata: str) -> set[str]:
         field, separator, _ = line.partition(":")
         if not separator:
             continue
-        field = re.sub(r"^\s*[-*]\s+", "", field)
+        field = re.sub(r"^\s*[-*+]\s+", "", field)
         names.add(field.strip().strip("*_`").strip().casefold())
     return names
 
@@ -392,11 +392,14 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
     findings: list[str] = []
 
     expected_state_headings = (
-        "## Cursor", "## Gate authority", "## Phase status", "## Task status",
-        "## Active exceptions", "## Evidence references", "## Compaction rule",
+        "## Cursor", "## Gate authority", "### Gate A", "### Gate B",
+        "## Phase status", "## Task status", "## Active exceptions",
+        "## Evidence references", "## Compaction rule",
     )
     actual_state_headings = tuple(
-        line for line in state.splitlines() if line.startswith("## ")
+        line
+        for line in state.splitlines()
+        if re.match(r"^#{2,3}\s+", line)
     )
     if actual_state_headings != expected_state_headings:
         findings.append(
@@ -422,12 +425,6 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
     )
 
     gate_authority = _markdown_section(state, "## Gate authority", STATE_TEMPLATE_PATH)
-    gate_headings = re.findall(r"^###\s+(.+?)\s*$", gate_authority, re.MULTILINE)
-    if gate_headings != ["Gate A", "Gate B"]:
-        findings.append(
-            f"{STATE_TEMPLATE_PATH}: contract 'state.exactly-two-gates' "
-            f"requires Gate A and Gate B headings only, found {gate_headings}"
-        )
     for gate in ("A", "B"):
         gate_section = _markdown_section(
             gate_authority,
