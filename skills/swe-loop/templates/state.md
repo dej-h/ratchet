@@ -15,6 +15,8 @@ Lives in `~/.claude/swe-loops/<repo>/<slug>/` — never inside the repo.
 - **Current task:** <task ID + name | n/a>
 - **Next action:** <one concrete action>
 - **ADR:** <path>
+- **Test intent:** pending | persisted <timestamp> (`test-plan.md`)
+- **Bugfix reproduction:** n/a | pending | red confirmed <evidence reference>
 - **Last reviewed SHA:** pending | stale | <40-character SHA> (branch) | <base SHA> (workspace; pair with review evidence)
 - **Review evidence:** <evidence reference | pending>
 
@@ -37,6 +39,7 @@ other artifact. Preserve approved rows exactly during compaction.
 | 1 Plan | pending / active / blocked / done | |
 | 2 Context | pending / active / blocked / done | |
 | 3 Implement | pending / active / blocked / done | |
+| Test intent boundary | pending / done | `test-plan.md` reference |
 | 4 Test | pending / active / blocked / done | |
 | 5 Review | pending / active / blocked / done | |
 | 6 Verify | pending / active / blocked / done | |

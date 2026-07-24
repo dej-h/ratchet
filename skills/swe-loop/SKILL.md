@@ -213,6 +213,9 @@ Do:
 - One task at a time. Branch mode: commit per task with a clean message.
   Workspace mode: no commits — stage the task's files when it's done, leave
   in-progress work unstaged.
+- For the bugfix profile, do not edit the production fix until the Phase 4
+  test-intent boundary and failing reproduction are recorded. Follow the
+  profile's explicit phase-order exception below.
 - Minimal diff: never reformat, rename, or refactor code the task doesn't
   touch. Review capacity is the throughput bottleneck; every unnecessary
   changed line spends it.
@@ -229,18 +232,30 @@ stale and returns the loop to Phase 5.
 
 ### Phase 4 — Test with intent
 
-Do — as a separate turn from implementation:
-- Write `test-plan.md` **first**: what this change needs in terms of testing —
-  behaviors, edge cases, failure modes, integration surfaces, what explicitly
-  won't be tested and why. Intent before code. Start from the ADR's EARS
-  criteria: each criterion maps to at least one test.
-- Then implement the tests per plan. Tests assert behavior, not
-  implementation details.
+Do:
+1. Write `test-plan.md` **first**: what this change needs in terms of testing,
+   including behaviors, edge cases, failure modes, integration surfaces, and
+   what explicitly will not be tested and why. Start from the ADR's EARS
+   criteria; each criterion maps to at least one test. A copied but empty
+   template does not complete test intent. Every section needs concrete intent
+   or an explicit `none` with a reason.
+2. Persist `test-plan.md`, then record the completed test-intent boundary and
+   test-plan reference in `state.md`.
+3. Only after both writes may test-code edits begin. The same agent turn may
+   continue immediately; this is an artifact-ordering boundary, not a human
+   checkpoint or required conversation pause.
+4. Implement the tests per plan. Tests assert behavior, not implementation
+   details. Update their result and durable evidence in `test-plan.md` rather
+   than copying output into `state.md`.
 - Use the verify skill to exercise the affected flow end-to-end, not just
   unit tests.
+- For genuinely high-risk work, a fresh-context review of the test plan is an
+  available self-check before step 2. It is not mandatory for every task and
+  never becomes a third human gate.
 
-**Exit boundary:** test-plan.md existed *before* test code was written; every
-planned test is implemented or explicitly deferred with a reason.
+**Exit boundary:** `test-plan.md` and the state boundary existed before test
+code was edited; every planned test is implemented or explicitly deferred
+with a reason.
 
 ### Phase 5 — Independent review
 
@@ -305,8 +320,12 @@ The phases never change; their depth does:
 - **feature** — full loop as written.
 - **bugfix** — Phase 0 collapses to a short root-cause note in state.md (full
   ADR only if the fix changes architecture; Gate A becomes a quick confirm).
-  Phase 4 requires a *failing reproduction test before the fix* — red, then
-  green.
+  After Phase 2, enter Phase 4 long enough to persist `test-plan.md`, record
+  the test-intent boundary in `state.md`, write and run the reproduction test,
+  and record the observed failure. Only then enter Phase 3 for the production
+  fix. Return to Phase 4 for the passing run and remaining planned coverage.
+  The required order is plan, persisted boundary, red reproduction,
+  production fix, green verification.
 - **db / migration** — Phase 0 must include a rollback/reversibility plan.
   Never run against a non-local database. Phase 6 additionally tests the
   migration both up and down.
