@@ -353,6 +353,17 @@ class TestSweLoopContract:
         replace_once(state, heading, f"   {heading}")
         assert run_checks(repo) == []
 
+    def test_space_delimited_atx_closing_hash_is_accepted(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, "## Cursor", "## Cursor #")
+        assert run_checks(repo) == []
+
+    def test_attached_trailing_hash_changes_heading_name(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, "## Cursor", "## Cursor#")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
     def test_heading_in_gate_wording_is_not_a_state_section(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
         text = state.read_text().replace(

@@ -298,7 +298,10 @@ def _markdown_headings(text: str) -> list[tuple[int, str]]:
             fence_length = len(opening.group(1))
             continue
 
-        match = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", stripped)
+        match = re.match(
+            r"^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$",
+            stripped,
+        )
         if match:
             headings.append((index, f"{match.group(1)} {match.group(2)}"))
     return headings
