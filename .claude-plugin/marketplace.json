@@ -12,7 +12,7 @@
       "name": "ratchet",
       "description": "Phase-gated SWE workflow: ADR-first design, review-effort-budgeted tasks, reuse inventory, test-plan-before-tests, fresh-context review, drift-checked delivery. Includes the write-as-dejan writing-voice skill.",
       "source": "./",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "category": "productivity"
     }
   ]
