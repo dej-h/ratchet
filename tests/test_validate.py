@@ -332,6 +332,17 @@ class TestSweLoopContract:
         findings = run_checks(repo)
         assert any("state.sections" in finding for finding in findings)
 
+    @pytest.mark.parametrize("heading", ["   ## Notes", "   ### Gate C"])
+    def test_indented_unknown_state_section_is_reported(
+        self,
+        repo: Path,
+        heading: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        state.write_text(f"{state.read_text()}\n{heading}\n")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
     def test_third_gate_block_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
         replace_once(state, "## Phase status", "### Gate C\n\n## Phase status")
@@ -540,7 +551,9 @@ class TestSweLoopContract:
         "local_metadata",
         [
             "- **Notes:** docs/loops/example/\n",
+            "- **Notes:** docs/loops\n",
             "- **Notes:** ~/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** ~/.claude/swe-loops\n",
             "- **Notes:** $HOME/.claude/swe-loops/repo/slug/\n",
             "- **Notes:** /home/dejan/.claude/swe-loops/repo/slug/\n",
             "- **Notes:** /Users/dejan/.claude/swe-loops/repo/slug/\n",

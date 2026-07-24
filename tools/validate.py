@@ -397,9 +397,9 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
         "## Evidence references", "## Compaction rule",
     )
     actual_state_headings = tuple(
-        line
+        match.group(1)
         for line in state.splitlines()
-        if re.match(r"^#{2,3}\s+", line)
+        if (match := re.match(r"^ {0,3}(#{2,3}\s+.+?)\s*$", line))
     )
     if actual_state_headings != expected_state_headings:
         findings.append(
@@ -544,7 +544,10 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
             f"{ADR_TEMPLATE_PATH}: contract 'adr.no-loop-field' forbids a Loop metadata field"
         )
     normalized_metadata = adr_metadata.replace("\\", "/").casefold()
-    if ".claude/swe-loops/" in normalized_metadata or "docs/loops/" in normalized_metadata:
+    local_loop_path = re.compile(
+        r"(?:\.claude/swe-loops|docs/loops)(?![a-z0-9_.-])"
+    )
+    if local_loop_path.search(normalized_metadata):
         findings.append(
             f"{ADR_TEMPLATE_PATH}: contract 'adr.no-local-loop-reference' "
             "forbids author-local loop paths in ADR metadata"
