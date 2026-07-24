@@ -374,11 +374,13 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
                 ContractMarker("state.current-task", "- **Current task:**"),
                 ContractMarker("state.test-intent", "- **Test intent:**"),
                 ContractMarker("state.reviewed-sha", "- **Last reviewed SHA:**"),
+                ContractMarker("state.review-invalidated", "stale"),
                 ContractMarker("state.gate-authority", "## Gate authority"),
                 ContractMarker("state.gate-wording", "Exact user wording"),
                 ContractMarker("state.phase-status", "## Phase status"),
                 ContractMarker("state.task-status", "## Task status"),
                 ContractMarker("state.active-exceptions", "## Active exceptions"),
+                ContractMarker("state.exception-kinds", "finding / waiver"),
                 ContractMarker("state.evidence-references", "## Evidence references"),
                 ContractMarker("state.compaction", "## Compaction rule"),
             ),
@@ -398,7 +400,8 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
         )
     )
 
-    gate_rows = re.findall(r"^\|\s*([A-Z])\s*\|", state, re.MULTILINE)
+    gate_authority = _markdown_section(state, "## Gate authority", STATE_TEMPLATE_PATH)
+    gate_rows = re.findall(r"^\|\s*([A-Z])\s*\|", gate_authority, re.MULTILINE)
     if gate_rows != ["A", "B"]:
         findings.append(
             f"{STATE_TEMPLATE_PATH}: contract 'state.exactly-two-gates' "
@@ -424,6 +427,10 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
             (
                 ContractMarker("test-plan.intent-status", "- **Intent status:**"),
                 ContractMarker("test-plan.execution-status", "- **Execution status:**"),
+                ContractMarker(
+                    "test-plan.material-intent",
+                    "Copying this template does not complete the boundary.",
+                ),
                 ContractMarker("test-plan.ears", "## Behaviors under test"),
                 ContractMarker("test-plan.edge-cases", "## Edge cases & failure modes"),
                 ContractMarker("test-plan.integrations", "## Integration surfaces"),
