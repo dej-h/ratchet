@@ -17,8 +17,8 @@ Lives in `~/.claude/swe-loops/<repo>/<slug>/` — never inside the repo.
 - **ADR:** <path>
 - **Test intent:** pending | persisted <timestamp> (`test-plan.md`)
 - **Bugfix reproduction:** n/a | pending | red confirmed <evidence reference>
-- **Last reviewed SHA:** pending | stale | <40-character HEAD SHA> (branch) |
-  <base SHA + `git diff --binary` SHA-256> (workspace)
+- **Last reviewed revision:** pending | stale | <40-character HEAD SHA> (branch) |
+  <base SHA + output of `git diff --binary HEAD | sha256sum`> (workspace)
 - **Review evidence:** <evidence reference | pending>
 
 ## Gate authority

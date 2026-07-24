@@ -37,7 +37,7 @@ completed entries at phase transitions.
 ### Option B: Bounded cursor with explicit artifact ownership (chosen)
 
 Limit `state.md` to loop identity, current phase and task, task status, exact
-gate authority, test-intent status, last reviewed SHA, active findings and
+gate authority, test-intent status, last reviewed revision, active findings and
 waivers, and durable evidence references. The ADR owns design decisions,
 `plan.md` owns task detail and reuse inventory, `test-plan.md` owns planned
 tests and their results, and the PR or `pr-description.md` owns delivery prose. Detailed
@@ -99,7 +99,9 @@ are never compacted. Resolved findings move to their owning evidence.
 Any remediation after a review pass invalidates every pass over the earlier
 revision. Phase 5 must converge on the unchanged revision delivered at Gate B.
 Branch mode identifies that revision by its HEAD SHA. Workspace mode records
-both the base SHA and a SHA-256 fingerprint of the binary diff.
+both the base SHA and the output of
+`git diff --binary HEAD | sha256sum`, which includes staged and unstaged
+tracked changes.
 
 Validation will enforce structural state sections, fields, and tables; the
 absence of known diary sections; the ordered Phase 4 protocol labels; and
@@ -111,7 +113,7 @@ the instructions.
 
 - WHEN a loop is initialized THE LOOP SHALL record its profile, mode,
   repository, branch, status, current phase, current task, task statuses,
-  test-intent status, last reviewed SHA, gate authority, active exceptions,
+  test-intent status, last reviewed revision, gate authority, active exceptions,
   and evidence references in `state.md`.
 - WHEN a phase transition completes THE LOOP SHALL update cursor values in
   place and reduce completed detail to a result plus a durable evidence
@@ -132,7 +134,7 @@ the instructions.
 - WHEN the active profile is `bugfix` THE LOOP SHALL record a failing
   reproduction before the production fix and passing evidence after it.
 - WHEN source or test code changes after independent review THE LOOP SHALL
-  mark the last reviewed SHA stale and repeat every Phase 5 pass against the
+  mark the last reviewed revision stale and repeat every Phase 5 pass against the
   new revision.
 - WHEN Phase 5 completes THE LOOP SHALL identify the exact reviewed revision
   and SHALL NOT deliver a different revision at Gate B.
@@ -154,7 +156,7 @@ the instructions.
 
 ```mermaid
 graph LR
-    Agent(["Coding Agent"])
+    Agent["Coding Agent<br/>[Agent]"]
 
     subgraph loop["External Loop Directory"]
         State["state.md
@@ -176,12 +178,12 @@ graph LR
         no local path"]
     end
 
-    Agent -->|"read/write Markdown"| State
-    State -->|"reference tasks"| Plan
-    State -->|"reference tests"| Tests
-    State -->|"reference details"| Evidence
-    State -->|"reference delivery"| Delivery
-    State -.->|"link durable design"| ADR
+    Agent -.->|"reads/writes via filesystem"| State
+    State -->|"loads tasks via relative path"| Plan
+    State -->|"loads tests via relative path"| Tests
+    State -->|"loads detail via relative path"| Evidence
+    State -->|"links delivery via path or URL"| Delivery
+    State -.->|"links decision via repo path"| ADR
 
     style loop fill:none,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4
     style repo fill:none,stroke:#4a9970,stroke-width:2px,stroke-dasharray:7 4

@@ -234,7 +234,7 @@ mechanical and semantic mixing; `git diff --stat` shows no unrelated file
 churn. Update only the task status, current pointer, and evidence reference in
    `state.md`. Any source or test edit after a Phase 5 review pass, including a
    remediation made while Phase 5 is active, invalidates that pass, marks the
-   last reviewed SHA stale, and requires every review pass again on the new
+   last reviewed revision stale, and requires every review pass again on the new
    revision.
 
 ### Phase 4 — Test with intent
@@ -281,8 +281,9 @@ Do — in fresh-context subagents, never the implementing context:
 **Exit boundary:** every finding is fixed or explicitly waived. A remediation
 invalidates all review passes on the earlier revision, so repeat every pass
 until they converge on one unchanged revision. Record that revision and the
-evidence reference in `state.md`; in workspace mode record the base SHA and a
-SHA-256 fingerprint of `git diff --binary`. The final reviewed revision must
+evidence reference in `state.md`; in workspace mode record the base SHA and the
+output of `git diff --binary HEAD | sha256sum`, which includes both staged and
+unstaged tracked changes. The final reviewed revision must
 equal the delivered revision. Keep only unresolved findings and active waivers
 in state. Detailed resolved findings and zoom-out feedback remain in
 `evidence.md`.
