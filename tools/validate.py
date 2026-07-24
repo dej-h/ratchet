@@ -78,10 +78,10 @@ REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 UNRESOLVED_ICON_SVG_RE = re.compile(
     r"<tspan\b[^>]*>\s*\?\s*</tspan>", re.IGNORECASE
 )
-AUTHOR_LOCAL_LOOP_RE = re.compile(
-    r"(?:~|/(?:home|Users)/[^/\s`]+)/\.claude/swe-loops/"
+ADR_LOOP_FIELD_RE = re.compile(
+    r"^\s*(?:[-*]\s*)?\*\*\s*Loop\s*:\s*\*\*",
+    re.IGNORECASE | re.MULTILINE,
 )
-ADR_LOOP_FIELD_RE = re.compile(r"^\s*-\s+\*\*Loop:\*\*", re.MULTILINE)
 
 
 class ValidationError(Exception):
@@ -127,14 +127,6 @@ class CanonicalExample:
     icon_packs: tuple[str, ...]
     configs: ThemePaths | None
     renders: ThemePaths | None
-
-
-@dataclass(frozen=True)
-class ContractMarker:
-    """One stable phrase that represents a named workflow invariant."""
-
-    identifier: str
-    text: str
 
 
 def load_json(path: Path, repo_root: Path) -> dict[str, Any]:
@@ -304,268 +296,221 @@ def _markdown_section(text: str, heading: str, path: Path) -> str:
     return "\n".join(lines[start:end])
 
 
-def _check_required_markers(
+def _check_unique_fields(
     text: str,
     path: Path,
-    markers: tuple[ContractMarker, ...],
+    contract_prefix: str,
+    required_fields: tuple[str, ...],
 ) -> list[str]:
-    """Report missing named markers without freezing surrounding prose."""
-    normalized_text = " ".join(text.split())
+    """Require each named field exactly once inside its owning section."""
+    names = re.findall(r"^\s*-\s+\*\*([^*\n]+?):\*\*", text, re.MULTILINE)
     return [
-        f"{path}: contract '{marker.identifier}' is missing marker: {marker.text}"
-        for marker in markers
-        if " ".join(marker.text.split()) not in normalized_text
+        f"{path}: contract '{contract_prefix}."
+        f"{re.sub(r'[^a-z0-9]+', '-', field.casefold()).strip('-')}' "
+        f"requires field '{field}' exactly once, found {names.count(field)}"
+        for field in required_fields
+        if names.count(field) != 1
     ]
 
 
-def _check_forbidden_markers(
-    text: str,
-    path: Path,
-    markers: tuple[ContractMarker, ...],
-) -> list[str]:
-    """Report phrases or headings that would restore a retired contract."""
-    normalized_text = " ".join(text.split())
-    return [
-        f"{path}: contract '{marker.identifier}' forbids marker: {marker.text}"
-        for marker in markers
-        if " ".join(marker.text.split()) in normalized_text
-    ]
+def _markdown_table(text: str) -> list[list[str]]:
+    """Parse the first simple pipe table in a Markdown section."""
+    rows: list[list[str]] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            if rows:
+                break
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+            continue
+        rows.append(cells)
+    return rows
 
 
-def _check_marker_order(
+def _check_table_schema(
     text: str,
     path: Path,
     contract_id: str,
-    markers: tuple[ContractMarker, ...],
+    expected_header: tuple[str, ...],
+    required_row_keys: tuple[str, ...],
 ) -> list[str]:
-    """Require named markers to occur in the declared source order."""
-    findings = _check_required_markers(text, path, markers)
-    if findings:
-        return findings
+    """Validate one template table's header and required first-column rows."""
+    rows = _markdown_table(text)
+    if not rows or tuple(rows[0]) != expected_header:
+        found = tuple(rows[0]) if rows else ()
+        return [
+            f"{path}: contract '{contract_id}.header' requires "
+            f"{expected_header}, found {found}"
+        ]
 
-    normalized_text = " ".join(text.split())
-    positions = [normalized_text.index(" ".join(marker.text.split())) for marker in markers]
-    if positions != sorted(positions):
-        marker_ids = " -> ".join(marker.identifier for marker in markers)
-        return [f"{path}: contract '{contract_id}' must keep marker order: {marker_ids}"]
+    row_keys = tuple(row[0] for row in rows[1:] if row)
+    missing = [key for key in required_row_keys if key not in row_keys]
+    if missing:
+        return [
+            f"{path}: contract '{contract_id}.rows' is missing rows: "
+            f"{', '.join(missing)}"
+        ]
     return []
 
 
+def _check_exact_headings(
+    text: str,
+    path: Path,
+    contract_id: str,
+    required: tuple[str, ...],
+) -> list[str]:
+    """Require exact structural headings without constraining section prose."""
+    lines = text.splitlines()
+    return [
+        f"{path}: contract '{contract_id}' requires heading '{heading}' exactly once"
+        for heading in required
+        if lines.count(heading) != 1
+    ]
+
+
 def check_swe_loop_contract(repo_root: Path) -> list[str]:
-    """Validate the compact-state, test-intent, and durable-ADR contracts."""
+    """Validate stable structure for the three SWE-loop documentation contracts."""
     skill = _read_contract_document(repo_root, SWE_LOOP_SKILL_PATH)
     state = _read_contract_document(repo_root, STATE_TEMPLATE_PATH)
-    test_plan = _read_contract_document(repo_root, TEST_PLAN_TEMPLATE_PATH)
-    evidence = _read_contract_document(repo_root, EVIDENCE_TEMPLATE_PATH)
+    _read_contract_document(repo_root, TEST_PLAN_TEMPLATE_PATH)
+    _read_contract_document(repo_root, EVIDENCE_TEMPLATE_PATH)
     adr_template = _read_contract_document(repo_root, ADR_TEMPLATE_PATH)
 
     findings: list[str] = []
-    findings.extend(
-        _check_required_markers(
-            state,
-            STATE_TEMPLATE_PATH,
-            (
-                ContractMarker("state.cursor", "## Cursor"),
-                ContractMarker("state.profile", "- **Profile:**"),
-                ContractMarker("state.mode", "- **Mode:**"),
-                ContractMarker("state.repository", "- **Repo / branch:**"),
-                ContractMarker("state.status", "- **Status:**"),
-                ContractMarker("state.current-phase", "- **Current phase:**"),
-                ContractMarker("state.current-task", "- **Current task:**"),
-                ContractMarker("state.test-intent", "- **Test intent:**"),
-                ContractMarker("state.reviewed-sha", "- **Last reviewed SHA:**"),
-                ContractMarker("state.review-invalidated", "stale"),
-                ContractMarker("state.gate-authority", "## Gate authority"),
-                ContractMarker("state.gate-wording", "Exact user wording"),
-                ContractMarker("state.phase-status", "## Phase status"),
-                ContractMarker("state.task-status", "## Task status"),
-                ContractMarker("state.active-exceptions", "## Active exceptions"),
-                ContractMarker("state.exception-kinds", "finding / waiver"),
-                ContractMarker("state.evidence-references", "## Evidence references"),
-                ContractMarker("state.compaction", "## Compaction rule"),
-            ),
-        )
+
+    state_headings = (
+        "## Cursor", "## Gate authority", "## Phase status", "## Task status",
+        "## Active exceptions", "## Evidence references", "## Compaction rule",
     )
     findings.extend(
-        _check_forbidden_markers(
-            state,
+        _check_exact_headings(
+            state, STATE_TEMPLATE_PATH, "state.sections", state_headings
+        )
+    )
+
+    state_lines = state.splitlines()
+    for heading in (
+        "## Phase checklist",
+        "## Diagram evidence",
+        "## Reuse inventory",
+        "## Decision log",
+        "## Zoom-out findings",
+    ):
+        if heading in state_lines:
+            findings.append(
+                f"{STATE_TEMPLATE_PATH}: contract 'state.no-diary-sections' "
+                f"forbids heading '{heading}'"
+            )
+
+    cursor_fields = (
+        "Profile", "Mode", "Repo / branch", "Worktree", "Started", "Status",
+        "Current phase", "Current boundary", "Current task", "Next action", "ADR",
+        "Test intent", "Bugfix reproduction", "Last reviewed SHA", "Review evidence",
+    )
+    cursor = _markdown_section(state, "## Cursor", STATE_TEMPLATE_PATH)
+    findings.extend(
+        _check_unique_fields(
+            cursor,
             STATE_TEMPLATE_PATH,
-            (
-                ContractMarker("state.no-phase-checklist", "## Phase checklist"),
-                ContractMarker("state.no-diagram-diary", "## Diagram evidence"),
-                ContractMarker("state.no-reuse-diary", "## Reuse inventory"),
-                ContractMarker("state.no-decision-diary", "## Decision log"),
-                ContractMarker("state.no-zoomout-diary", "## Zoom-out findings"),
-            ),
+            "state.cursor",
+            cursor_fields,
         )
     )
 
     gate_authority = _markdown_section(state, "## Gate authority", STATE_TEMPLATE_PATH)
-    gate_rows = re.findall(r"^\|\s*([A-Z])\s*\|", gate_authority, re.MULTILINE)
-    if gate_rows != ["A", "B"]:
+    gate_headings = re.findall(r"^### Gate ([A-Z])$", gate_authority, re.MULTILINE)
+    if gate_headings != ["A", "B"]:
         findings.append(
             f"{STATE_TEMPLATE_PATH}: contract 'state.exactly-two-gates' "
-            f"requires gate rows A and B only, found {gate_rows}"
+            f"requires Gate A and Gate B blocks only, found {gate_headings}"
         )
+    for gate in ("A", "B"):
+        gate_section = _markdown_section(
+            gate_authority,
+            f"### Gate {gate}",
+            STATE_TEMPLATE_PATH,
+        )
+        findings.extend(
+            _check_unique_fields(
+                gate_section,
+                STATE_TEMPLATE_PATH,
+                f"state.gate-{gate.lower()}",
+                ("Status", "Date", "Approved revision", "Exact user wording"),
+            )
+        )
+        if gate_section.count("```text") != 1:
+            findings.append(
+                f"{STATE_TEMPLATE_PATH}: contract 'state.gate-{gate.lower()}.wording-block' "
+                "requires one text fence"
+            )
 
-    findings.extend(
-        _check_required_markers(
-            evidence,
-            EVIDENCE_TEMPLATE_PATH,
+    table_contracts = (
+        (
+            "## Phase status",
+            "state.phase-status",
+            ("Phase", "Status", "Result / evidence reference"),
             (
-                ContractMarker("evidence.diagram", "## Diagram inspections"),
-                ContractMarker("evidence.review", "## Review findings"),
-                ContractMarker("evidence.verification", "## Verification"),
-                ContractMarker("evidence.revision", "Revision"),
+                "0 Design", "1 Plan", "2 Context", "3 Implement", "4 Test",
+                "5 Review", "6 Verify", "7 Deliver", "Close",
             ),
-        )
+        ),
+        (
+            "## Task status",
+            "state.task-status",
+            ("ID", "Status", "Result / evidence reference"),
+            ("T1",),
+        ),
+        (
+            "## Active exceptions",
+            "state.active-exceptions",
+            ("ID", "Kind", "Status", "Summary", "Evidence reference"),
+            (),
+        ),
+        (
+            "## Evidence references",
+            "state.evidence-references",
+            ("Ref", "Owner / purpose", "Path or URL"),
+            ("ADR", "PLAN", "TEST", "EVIDENCE", "DELIVERY"),
+        ),
     )
-    findings.extend(
-        _check_required_markers(
-            test_plan,
-            TEST_PLAN_TEMPLATE_PATH,
-            (
-                ContractMarker("test-plan.intent-status", "- **Intent status:**"),
-                ContractMarker("test-plan.execution-status", "- **Execution status:**"),
-                ContractMarker(
-                    "test-plan.material-intent",
-                    "Copying this template does not complete the boundary.",
-                ),
-                ContractMarker("test-plan.ears", "## Behaviors under test"),
-                ContractMarker("test-plan.edge-cases", "## Edge cases & failure modes"),
-                ContractMarker("test-plan.integrations", "## Integration surfaces"),
-                ContractMarker("test-plan.exclusions", "## Explicitly not tested"),
-                ContractMarker("test-plan.verification", "## Verification beyond tests"),
-                ContractMarker("test-plan.bugfix", "## Bugfix reproduction"),
-            ),
+    for heading, contract_id, header, row_keys in table_contracts:
+        section = _markdown_section(state, heading, STATE_TEMPLATE_PATH)
+        findings.extend(
+            _check_table_schema(
+                section,
+                STATE_TEMPLATE_PATH,
+                contract_id,
+                header,
+                row_keys,
+            )
         )
-    )
-
-    findings.extend(
-        _check_required_markers(
-            skill,
-            SWE_LOOP_SKILL_PATH,
-            (
-                ContractMarker("ownership.state", "`state.md`: compact execution cursor"),
-                ContractMarker("ownership.plan", "`plan.md`: task definitions"),
-                ContractMarker("ownership.test-plan", "`test-plan.md`: test intent"),
-                ContractMarker("ownership.evidence", "`evidence.md`: optional detailed"),
-                ContractMarker("ownership.delivery", "`pr-description.md`: Gate B summary"),
-                ContractMarker("resume.state-first", "read it first"),
-                ContractMarker(
-                    "resume.active-references",
-                    "active phase,\ncurrent task, or active exceptions",
-                ),
-                ContractMarker(
-                    "resume.no-history",
-                    "Do not load completed phase history by\ndefault.",
-                ),
-                ContractMarker("state.two-gates", "**Two human gates only.**"),
-            ),
-        )
-    )
-    findings.extend(
-        _check_forbidden_markers(
-            skill,
-            SWE_LOOP_SKILL_PATH,
-            (
-                ContractMarker(
-                    "ownership.no-state-diagram-detail",
-                    "guide self-check result in `state.md`",
-                ),
-                ContractMarker(
-                    "ownership.no-state-reuse-detail",
-                    "reuse inventory** into state.md",
-                ),
-                ContractMarker(
-                    "ownership.no-state-review-diary",
-                    "state.md\n  decision log",
-                ),
-                ContractMarker(
-                    "ownership.no-state-verification-detail",
-                    "record the evidence in `state.md`",
-                ),
-            ),
-        )
-    )
 
     phase_four = _markdown_section(skill, "### Phase 4 — Test with intent", SWE_LOOP_SKILL_PATH)
-    findings.extend(
-        _check_marker_order(
-            phase_four,
-            SWE_LOOP_SKILL_PATH,
-            "phase4.persisted-test-intent",
-            (
-                ContractMarker("phase4.plan", "Write `test-plan.md` **first**"),
-                ContractMarker("phase4.persist-plan", "Persist `test-plan.md`"),
-                ContractMarker(
-                    "phase4.record-boundary",
-                    "record the completed test-intent boundary",
-                ),
-                ContractMarker(
-                    "phase4.edit-tests",
-                    "Only after both writes may test-code edits begin",
-                ),
-                ContractMarker("phase4.same-turn", "same agent turn may"),
-            ),
+    phase_four_steps = [
+        label.removesuffix(".")
+        for label in re.findall(r"^\d+\.\s+\*\*([^*]+)\*\*", phase_four, re.MULTILINE)
+    ]
+    required_steps = [
+        "Plan test intent",
+        "Persist test intent",
+        "Record the boundary",
+        "Edit tests",
+    ]
+    if phase_four_steps != required_steps:
+        findings.append(
+            f"{SWE_LOOP_SKILL_PATH}: contract 'phase4.persisted-test-intent' "
+            f"requires ordered steps {required_steps}, found {phase_four_steps}"
         )
-    )
-    findings.extend(
-        _check_forbidden_markers(
-            phase_four,
-            SWE_LOOP_SKILL_PATH,
-            (
-                ContractMarker(
-                    "phase4.no-required-pause",
-                    "as a separate turn from implementation",
-                ),
-            ),
-        )
-    )
-
-    profiles = _markdown_section(skill, "## Profiles", SWE_LOOP_SKILL_PATH)
-    findings.extend(
-        _check_marker_order(
-            profiles,
-            SWE_LOOP_SKILL_PATH,
-            "bugfix.red-before-green",
-            (
-                ContractMarker("bugfix.plan", "persist `test-plan.md`"),
-                ContractMarker(
-                    "bugfix.state-boundary",
-                    "record the test-intent boundary",
-                ),
-                ContractMarker("bugfix.red", "reproduction test"),
-                ContractMarker("bugfix.fix", "production\n  fix"),
-                ContractMarker("bugfix.green", "passing run"),
-            ),
-        )
-    )
-
-    phase_zero = _markdown_section(skill, "### Phase 0 — Design (ADR)", SWE_LOOP_SKILL_PATH)
-    findings.extend(
-        _check_required_markers(
-            phase_zero,
-            SWE_LOOP_SKILL_PATH,
-            (
-                ContractMarker(
-                    "adr.local-path-state-only",
-                    "External loop paths\n  remain in `state.md`",
-                ),
-                ContractMarker(
-                    "adr.no-local-path",
-                    "never appear in the committed ADR",
-                ),
-            ),
-        )
-    )
 
     adr_metadata = adr_template.partition("## Context")[0]
     if ADR_LOOP_FIELD_RE.search(adr_metadata):
         findings.append(
             f"{ADR_TEMPLATE_PATH}: contract 'adr.no-loop-field' forbids a Loop metadata field"
         )
-    if AUTHOR_LOCAL_LOOP_RE.search(adr_metadata) or "docs/loops/<slug>/" in adr_metadata:
+    normalized_metadata = adr_metadata.replace("\\", "/").casefold()
+    if ".claude/swe-loops/" in normalized_metadata or "docs/loops/" in normalized_metadata:
         findings.append(
             f"{ADR_TEMPLATE_PATH}: contract 'adr.no-local-loop-reference' "
             "forbids author-local loop paths in ADR metadata"

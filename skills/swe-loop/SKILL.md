@@ -14,9 +14,10 @@ description: >
 
 Operating principle: an expert does all the basics well, every time. This loop
 exists so discipline does not depend on session memory, context freshness, or
-mood. The phases are invariant; the checks inside them vary per profile (see
-Profiles). Progress must always be legible: anyone opening the state file knows
-exactly where the work stands.
+mood. The phase responsibilities and human gates are invariant; profiles may
+change depth and, where explicitly documented, ordering (see Profiles).
+Progress must always be legible: anyone opening the state file knows exactly
+where the work stands.
 
 ## Non-negotiables (every phase)
 
@@ -231,24 +232,28 @@ Do:
 exactly one classifiable concern matching its S/M class from plan.md, with no
 mechanical and semantic mixing; `git diff --stat` shows no unrelated file
 churn. Update only the task status, current pointer, and evidence reference in
-`state.md`. Any source or test edit after Phase 5 marks the last reviewed SHA
-stale and returns the loop to Phase 5.
+   `state.md`. Any source or test edit after a Phase 5 review pass, including a
+   remediation made while Phase 5 is active, invalidates that pass, marks the
+   last reviewed SHA stale, and requires every review pass again on the new
+   revision.
 
 ### Phase 4 — Test with intent
 
 Do:
-1. Write `test-plan.md` **first**: what this change needs in terms of testing,
+1. **Plan test intent.** Write `test-plan.md` first: what this change needs in terms of testing,
    including behaviors, edge cases, failure modes, integration surfaces, and
    what explicitly will not be tested and why. Start from the ADR's EARS
    criteria; each criterion maps to at least one test. A copied but empty
    template does not complete test intent. Every section needs concrete intent
    or an explicit `none` with a reason.
-2. Persist `test-plan.md`, then record the completed test-intent boundary and
+2. **Persist test intent.** Save the materially complete `test-plan.md`.
+3. **Record the boundary.** Record the completed test-intent boundary and
    test-plan reference in `state.md`.
-3. Only after both writes may test-code edits begin. The same agent turn may
+4. **Edit tests.** Only after the plan and state writes may test-code edits
+   begin. The same agent turn may
    continue immediately; this is an artifact-ordering boundary, not a human
    checkpoint or required conversation pause.
-4. Implement the tests per plan. Tests assert behavior, not implementation
+   Implement the tests per plan. Tests assert behavior, not implementation
    details. Update their result and durable evidence in `test-plan.md` rather
    than copying output into `state.md`.
 - Use the verify skill to exercise the affected flow end-to-end, not just
@@ -273,10 +278,14 @@ Do — in fresh-context subagents, never the implementing context:
   dispositions in `evidence.md`; never auto-apply them (that would blow the
   diff budget; they become candidate future loops).
 
-**Exit boundary:** every finding is fixed or explicitly waived. Record the
-reviewed SHA and evidence reference in `state.md`; keep only unresolved
-findings and active waivers there. Detailed resolved findings and zoom-out
-feedback remain in `evidence.md`.
+**Exit boundary:** every finding is fixed or explicitly waived. A remediation
+invalidates all review passes on the earlier revision, so repeat every pass
+until they converge on one unchanged revision. Record that revision and the
+evidence reference in `state.md`; in workspace mode record the base SHA and a
+SHA-256 fingerprint of `git diff --binary`. The final reviewed revision must
+equal the delivered revision. Keep only unresolved findings and active waivers
+in state. Detailed resolved findings and zoom-out feedback remain in
+`evidence.md`.
 
 ### Phase 6 — Verify against design
 
@@ -310,6 +319,9 @@ Do:
   - *workspace* — leave the diff reviewable in the working tree (staged =
     done) and write the summary to `pr-description.md` in the loop directory,
     exactly as it would read on a PR. Point the user at both.
+- Confirm the delivered revision still equals the Phase 5 reviewed revision.
+  If it does not, return to Phase 5 before creating or updating the Gate B
+  review surface.
 - After approval only: update durable learnings — repo CLAUDE.md/rules and
   memory (revise-claude-md skill) — so the next loop starts smarter. Mark
   `state.md` complete and compact it one final time.
@@ -319,7 +331,8 @@ or local diff OK'd in chat); learnings persisted; state.md closed.
 
 ## Profiles
 
-The phases never change; their depth does:
+The phase responsibilities and two gates never change. Their depth, and the
+ordering explicitly stated by a profile, can:
 
 - **feature** — full loop as written.
 - **bugfix** — Phase 0 collapses to a short root-cause note in state.md (full

@@ -1,10 +1,8 @@
 # Test plan: <slug>
 
 Written BEFORE any test code. Testing with intent: what does this change
-need, not what is easy to cover.
-
-- **Intent status:** drafting | persisted <timestamp>
-- **Execution status:** not started | in progress | complete
+need, not what is easy to cover. `state.md` owns the persisted test-intent
+boundary and Phase 4 status; do not duplicate either status here.
 
 Intent is complete only when every EARS criterion maps to a planned test and
 every section below contains concrete intent or an explicit `none` with a

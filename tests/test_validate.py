@@ -2,8 +2,8 @@
 
 Every failure case here is either a reviewer-reproduced bug from this repo's
 own Phase 5 review (KeyError crash, never-closed-frontmatter false PASS) or
-a check the validator explicitly claims to make. Fixture repos are built in
-tmp_path so the tests never depend on this repo's own current state.
+a check the validator explicitly claims to make. Fixture repos copy the
+shipped SWE-loop contract into `tmp_path`, then mutate that isolated copy.
 """
 
 from __future__ import annotations
@@ -17,116 +17,7 @@ from tools.validate import parse_frontmatter, run_checks
 
 PLUGIN_NAME = "ratchet"
 VERSION = "0.1.0"
-
-SWE_LOOP_CONTRACT = """---
-name: swe-loop
-description: fixture workflow
----
-
-# swe-loop
-
-**Two human gates only.**
-
-- `state.md`: compact execution cursor
-- `plan.md`: task definitions
-- `test-plan.md`: test intent
-- `evidence.md`: optional detailed evidence
-- `pr-description.md`: Gate B summary
-
-Resume by reading state: read it first. Then load only the artifacts referenced
-by the active phase, current task, or active exceptions. Do not load completed
-phase history by default.
-
-### Phase 0 — Design (ADR)
-
-External loop paths remain in `state.md` and never appear in the committed ADR.
-
-### Phase 4 — Test with intent
-
-Write `test-plan.md` **first**. A copied but empty template does not complete
-test intent. Persist `test-plan.md`, then record the completed test-intent
-boundary. Only after both writes may test-code edits begin. The same agent turn
-may continue immediately.
-
-## Profiles
-
-For a bugfix, persist `test-plan.md`, record the test-intent boundary, run the
-reproduction test, apply the production fix, then record the passing run.
-"""
-
-STATE_CONTRACT = """# Loop state
-
-## Cursor
-
-- **Profile:** feature
-- **Mode:** branch
-- **Repo / branch:** example/repo @ feature
-- **Status:** in progress
-- **Current phase:** 4 Test
-- **Current task:** T1
-- **Test intent:** persisted (`test-plan.md`)
-- **Last reviewed SHA:** pending | stale | <sha>
-
-## Gate authority
-
-| Gate | Status | Date | Exact user wording | Approved revision |
-|---|---|---|---|---|
-| A | approved | | words | ADR |
-| B | pending | | | |
-
-## Phase status
-
-## Task status
-
-## Active exceptions
-
-| ID | Kind |
-|---|---|
-| X | finding / waiver |
-
-## Evidence references
-
-## Compaction rule
-"""
-
-TEST_PLAN_CONTRACT = """# Test plan
-
-- **Intent status:** persisted
-- **Execution status:** not started
-
-Copying this template does not complete the boundary.
-
-## Behaviors under test
-
-## Edge cases & failure modes
-
-## Integration surfaces
-
-## Explicitly not tested
-
-## Verification beyond tests
-
-## Bugfix reproduction
-"""
-
-EVIDENCE_CONTRACT = """# Evidence
-
-## Diagram inspections
-
-## Review findings
-
-## Verification
-
-Revision
-"""
-
-ADR_CONTRACT = """# ADR NNN
-
-- **Status:** proposed
-- **Date:** <date>
-
-## Context
-"""
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 PALETTE = """    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
     classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
@@ -205,14 +96,18 @@ def rewrite_json(path: Path, mutate) -> None:
 
 
 def write_swe_loop_contract_fixture(root: Path) -> None:
-    """Write the smallest complete workflow contract accepted by the validator."""
-    template_directory = root / "skills" / "swe-loop" / "templates"
-    template_directory.mkdir(parents=True)
-    (template_directory.parent / "SKILL.md").write_text(SWE_LOOP_CONTRACT)
-    (template_directory / "state.md").write_text(STATE_CONTRACT)
-    (template_directory / "test-plan.md").write_text(TEST_PLAN_CONTRACT)
-    (template_directory / "evidence.md").write_text(EVIDENCE_CONTRACT)
-    (template_directory / "adr.md").write_text(ADR_CONTRACT)
+    """Copy the shipped contract so mutations test the actual release surface."""
+    contract_paths = (
+        Path("skills/swe-loop/SKILL.md"),
+        Path("skills/swe-loop/templates/state.md"),
+        Path("skills/swe-loop/templates/test-plan.md"),
+        Path("skills/swe-loop/templates/evidence.md"),
+        Path("skills/swe-loop/templates/adr.md"),
+    )
+    for relative_path in contract_paths:
+        target = root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((PROJECT_ROOT / relative_path).read_text())
 
 
 def replace_once(path: Path, old: str, new: str) -> None:
@@ -346,20 +241,24 @@ class TestSweLoopContract:
     @pytest.mark.parametrize(
         ("marker", "contract_id"),
         [
-            ("- **Profile:**", "state.profile"),
-            ("- **Mode:**", "state.mode"),
-            ("- **Repo / branch:**", "state.repository"),
-            ("- **Status:**", "state.status"),
-            ("- **Current phase:**", "state.current-phase"),
-            ("- **Current task:**", "state.current-task"),
-            ("- **Test intent:**", "state.test-intent"),
-            ("- **Last reviewed SHA:**", "state.reviewed-sha"),
-            ("Exact user wording", "state.gate-wording"),
-            ("## Active exceptions", "state.active-exceptions"),
-            ("## Evidence references", "state.evidence-references"),
+            ("- **Profile:**", "state.cursor.profile"),
+            ("- **Mode:**", "state.cursor.mode"),
+            ("- **Repo / branch:**", "state.cursor.repo-branch"),
+            ("- **Worktree:**", "state.cursor.worktree"),
+            ("- **Started:**", "state.cursor.started"),
+            ("- **Status:** in progress", "state.cursor.status"),
+            ("- **Current phase:**", "state.cursor.current-phase"),
+            ("- **Current boundary:**", "state.cursor.current-boundary"),
+            ("- **Current task:**", "state.cursor.current-task"),
+            ("- **Next action:**", "state.cursor.next-action"),
+            ("- **ADR:**", "state.cursor.adr"),
+            ("- **Test intent:**", "state.cursor.test-intent"),
+            ("- **Bugfix reproduction:**", "state.cursor.bugfix-reproduction"),
+            ("- **Last reviewed SHA:**", "state.cursor.last-reviewed-sha"),
+            ("- **Review evidence:**", "state.cursor.review-evidence"),
         ],
     )
-    def test_missing_state_cursor_marker_is_reported(
+    def test_missing_cursor_field_is_reported(
         self,
         repo: Path,
         marker: str,
@@ -370,124 +269,146 @@ class TestSweLoopContract:
         findings = run_checks(repo)
         assert any(contract_id in finding for finding in findings)
 
+    def test_cursor_field_moved_to_another_section_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text()
+        profile_line = next(
+            line for line in text.splitlines() if line.startswith("- **Profile:**")
+        )
+        text = text.replace(f"{profile_line}\n", "", 1)
+        text = text.replace(
+            "## Gate authority\n",
+            f"## Gate authority\n\n{profile_line}\n",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.cursor.profile" in finding for finding in findings)
+
+    def test_duplicate_cursor_field_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        profile_line = next(
+            line for line in state.read_text().splitlines() if line.startswith("- **Profile:**")
+        )
+        replace_once(state, profile_line, f"{profile_line}\n{profile_line}")
+        findings = run_checks(repo)
+        assert any(
+            "state.cursor.profile" in finding and "found 2" in finding
+            for finding in findings
+        )
+
     @pytest.mark.parametrize(
-        ("heading", "contract_id"),
+        "heading",
         [
-            ("## Phase checklist", "state.no-phase-checklist"),
-            ("## Diagram evidence", "state.no-diagram-diary"),
-            ("## Reuse inventory", "state.no-reuse-diary"),
-            ("## Decision log", "state.no-decision-diary"),
-            ("## Zoom-out findings", "state.no-zoomout-diary"),
+            "## Phase checklist",
+            "## Diagram evidence",
+            "## Reuse inventory",
+            "## Decision log",
+            "## Zoom-out findings",
         ],
     )
-    def test_diary_heading_is_reported(
-        self,
-        repo: Path,
-        heading: str,
-        contract_id: str,
-    ) -> None:
+    def test_diary_heading_is_reported(self, repo: Path, heading: str) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
         state.write_text(f"{state.read_text()}\n{heading}\n")
         findings = run_checks(repo)
-        assert any(contract_id in finding for finding in findings)
+        assert any("state.no-diary-sections" in finding for finding in findings)
 
-    def test_third_gate_is_reported(self, repo: Path) -> None:
+    def test_third_gate_block_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
-        replace_once(state, "| B | pending | | | |", "| B | pending | | | |\n| C | pending | | | |")
+        replace_once(state, "## Phase status", "### Gate C\n\n## Phase status")
         findings = run_checks(repo)
         assert any("state.exactly-two-gates" in finding for finding in findings)
 
+    def test_missing_gate_field_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "- **Date:** <date | pending>",
+            "removed gate date",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.gate-a.date" in finding for finding in findings)
+
+    def test_gate_wording_without_text_fence_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "```text\n<verbatim user message | pending>\n```",
+            "<verbatim user message | pending>",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.gate-a.wording-block" in finding for finding in findings)
+
     @pytest.mark.parametrize(
-        ("marker", "contract_id"),
+        ("old", "contract_id"),
         [
-            ("read it first", "resume.state-first"),
-            ("active phase, current task, or active exceptions", "resume.active-references"),
-            ("Do not load completed\nphase history by default.", "resume.no-history"),
+            ("| Phase | Status | Result / evidence reference |", "state.phase-status.header"),
+            (
+                "| 4 Test | pending / active / blocked / done | |",
+                "state.phase-status.rows",
+            ),
+            ("| ID | Status | Result / evidence reference |", "state.task-status.header"),
+            (
+                "| T1 | pending / active / blocked / done | |",
+                "state.task-status.rows",
+            ),
+            ("| Ref | Owner / purpose | Path or URL |", "state.evidence-references.header"),
+            (
+                "| DELIVERY | reviewer-facing summary | PR URL or `pr-description.md` |",
+                "state.evidence-references.rows",
+            ),
         ],
     )
-    def test_resume_contract_regression_is_reported(
+    def test_incomplete_state_table_is_reported(
         self,
         repo: Path,
-        marker: str,
+        old: str,
         contract_id: str,
     ) -> None:
-        skill = repo / "skills" / "swe-loop" / "SKILL.md"
-        replace_once(skill, marker, f"removed {contract_id}")
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, old, f"| removed {contract_id} |")
         findings = run_checks(repo)
         assert any(contract_id in finding for finding in findings)
 
-    def test_reordered_test_intent_boundary_is_reported(self, repo: Path) -> None:
+    def test_reordered_test_intent_steps_are_reported(self, repo: Path) -> None:
         skill = repo / "skills" / "swe-loop" / "SKILL.md"
-        old = (
-            "Persist `test-plan.md`, then record the completed test-intent\n"
-            "boundary. Only after both writes may test-code edits begin."
+        text = skill.read_text()
+        text = text.replace(
+            "1. **Plan test intent.**",
+            "1. **Persist test intent.**",
+            1,
         )
-        new = (
-            "Only after both writes may test-code edits begin. Persist `test-plan.md`, "
-            "then record the completed test-intent boundary."
+        text = text.replace(
+            "2. **Persist test intent.**",
+            "2. **Plan test intent.**",
+            1,
         )
-        replace_once(skill, old, new)
+        skill.write_text(text)
         findings = run_checks(repo)
         assert any("phase4.persisted-test-intent" in finding for finding in findings)
 
-    def test_required_separate_turn_is_reported(self, repo: Path) -> None:
-        skill = repo / "skills" / "swe-loop" / "SKILL.md"
-        replace_once(
-            skill,
-            "### Phase 4 — Test with intent",
-            "### Phase 4 — Test with intent\n\nDo as a separate turn from implementation.",
-        )
+    @pytest.mark.parametrize("loop_field", ["- **Loop:** external\n", "** Loop : ** external\n"])
+    def test_adr_loop_field_is_reported(self, repo: Path, loop_field: str) -> None:
+        adr = repo / "skills" / "swe-loop" / "templates" / "adr.md"
+        replace_once(adr, "\n## Context", f"\n{loop_field}\n## Context")
         findings = run_checks(repo)
-        assert any("phase4.no-required-pause" in finding for finding in findings)
-
-    @pytest.mark.parametrize(
-        ("marker", "contract_id"),
-        [
-            ("same agent turn\nmay", "phase4.same-turn"),
-            (
-                "Copying this template does not complete the boundary.",
-                "test-plan.material-intent",
-            ),
-            ("stale", "state.review-invalidated"),
-            ("finding / waiver", "state.exception-kinds"),
-        ],
-    )
-    def test_behavioral_marker_removal_is_reported(
-        self,
-        repo: Path,
-        marker: str,
-        contract_id: str,
-    ) -> None:
-        if contract_id.startswith("phase4"):
-            path = repo / "skills" / "swe-loop" / "SKILL.md"
-        elif contract_id.startswith("test-plan"):
-            path = repo / "skills" / "swe-loop" / "templates" / "test-plan.md"
-        else:
-            path = repo / "skills" / "swe-loop" / "templates" / "state.md"
-        replace_once(path, marker, f"removed {contract_id}")
-        findings = run_checks(repo)
-        assert any(contract_id in finding for finding in findings)
-
-    def test_bugfix_fix_before_reproduction_is_reported(self, repo: Path) -> None:
-        skill = repo / "skills" / "swe-loop" / "SKILL.md"
-        replace_once(
-            skill,
-            "run the\nreproduction test, apply the production fix",
-            "apply the production fix, then run the reproduction test",
-        )
-        findings = run_checks(repo)
-        assert any("bugfix.red-before-green" in finding for finding in findings)
+        assert any("adr.no-loop-field" in finding for finding in findings)
+        assert not any("adr.no-local-loop-reference" in finding for finding in findings)
 
     @pytest.mark.parametrize(
         "local_metadata",
         [
-            "- **Loop:** docs/loops/<slug>/\n",
-            "- **Loop:** ~/.claude/swe-loops/repo/slug/\n",
-            "- **Loop:** /home/dejan/.claude/swe-loops/repo/slug/\n",
-            "- **Loop:** /Users/dejan/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** docs/loops/example/\n",
+            "- **Notes:** ~/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** $HOME/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** /home/dejan/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** /Users/dejan/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** C:\\Users\\dejan\\.claude\\swe-loops\\repo\\slug\\\n",
         ],
     )
-    def test_local_adr_metadata_is_reported(
+    def test_local_adr_path_is_reported(
         self,
         repo: Path,
         local_metadata: str,
@@ -495,12 +416,16 @@ class TestSweLoopContract:
         adr = repo / "skills" / "swe-loop" / "templates" / "adr.md"
         replace_once(adr, "\n## Context", f"\n{local_metadata}\n## Context")
         findings = run_checks(repo)
-        assert any("adr.no-" in finding for finding in findings)
+        assert any("adr.no-local-loop-reference" in finding for finding in findings)
+        assert not any("adr.no-loop-field" in finding for finding in findings)
 
     def test_missing_contract_document_is_a_finding(self, repo: Path) -> None:
         (repo / "skills" / "swe-loop" / "templates" / "evidence.md").unlink()
         findings = run_checks(repo)
-        assert any("required SWE-loop contract document is missing" in finding for finding in findings)
+        assert any(
+            "required SWE-loop contract document is missing" in finding
+            for finding in findings
+        )
 
 
 class TestCanonicalRegistry:

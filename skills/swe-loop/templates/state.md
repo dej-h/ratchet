@@ -17,34 +17,49 @@ Lives in `~/.claude/swe-loops/<repo>/<slug>/` — never inside the repo.
 - **ADR:** <path>
 - **Test intent:** pending | persisted <timestamp> (`test-plan.md`)
 - **Bugfix reproduction:** n/a | pending | red confirmed <evidence reference>
-- **Last reviewed SHA:** pending | stale | <40-character SHA> (branch) | <base SHA> (workspace; pair with review evidence)
+- **Last reviewed SHA:** pending | stale | <40-character HEAD SHA> (branch) |
+  <base SHA + `git diff --binary` SHA-256> (workspace)
 - **Review evidence:** <evidence reference | pending>
 
 ## Gate authority
 
-| Gate | Status | Date | Exact user wording | Approved revision |
-|---|---|---|---|---|
-| A | pending / approved | | | <ADR path + revision> |
-| B | pending / approved | | | <PR/SHA or workspace evidence> |
+### Gate A
+
+- **Status:** pending | approved
+- **Date:** <date | pending>
+- **Approved revision:** <ADR path + revision | pending>
+- **Exact user wording:**
+
+```text
+<verbatim user message | pending>
+```
+
+### Gate B
+
+- **Status:** pending | approved
+- **Date:** <date | pending>
+- **Approved revision:** <PR/SHA or workspace evidence | pending>
+- **Exact user wording:**
+
+```text
+<verbatim user message | pending>
+```
 
 Gate authority is never inferred from CI, a PR, a commit, a checkbox, or any
-other artifact. Preserve approved rows exactly during compaction.
+other artifact. Preserve approved gate blocks exactly during compaction.
 
 ## Phase status
 
 | Phase | Status | Result / evidence reference |
 |---|---|---|
 | 0 Design | pending / active / blocked / done | |
-| Gate A | pending / done | Gate authority row |
 | 1 Plan | pending / active / blocked / done | |
 | 2 Context | pending / active / blocked / done | |
 | 3 Implement | pending / active / blocked / done | |
-| Test intent boundary | pending / done | `test-plan.md` reference |
 | 4 Test | pending / active / blocked / done | |
 | 5 Review | pending / active / blocked / done | |
 | 6 Verify | pending / active / blocked / done | |
 | 7 Deliver | pending / active / blocked / done | |
-| Gate B | pending / done | Gate authority row |
 | Close | pending / done | |
 
 ## Task status

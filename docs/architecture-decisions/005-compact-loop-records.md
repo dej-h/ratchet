@@ -39,8 +39,8 @@ completed entries at phase transitions.
 Limit `state.md` to loop identity, current phase and task, task status, exact
 gate authority, test-intent status, last reviewed SHA, active findings and
 waivers, and durable evidence references. The ADR owns design decisions,
-`plan.md` owns task detail and reuse inventory, `test-plan.md` owns test intent
-and results, and the PR or `pr-description.md` owns delivery prose. Detailed
+`plan.md` owns task detail and reuse inventory, `test-plan.md` owns planned
+tests and their results, and the PR or `pr-description.md` owns delivery prose. Detailed
 diagram, review, or verification records without a natural owner can live in
 an optional `evidence.md`.
 
@@ -90,14 +90,22 @@ append-only history.
 
 The state template will expose bounded sections for cursor fields, gate
 authority, phase status, task status, active exceptions, and evidence
-references. Exact gate wording and waivers are never compacted. Resolved
-findings move to their owning evidence. A review SHA becomes stale after any
-source or test edit and must be refreshed by Phase 5.
+references. Gate status lives only in separate Gate A and Gate B authority
+blocks, whose fenced wording can preserve multiline messages and Markdown
+table delimiters. Test-intent persistence lives only in the cursor, while
+phase execution lives only in the phase table. Exact gate wording and waivers
+are never compacted. Resolved findings move to their owning evidence.
 
-Validation will enforce the state template fields, the absence of known diary
-sections, the Phase 4 ordering, and durable-only ADR template metadata. It
-will not freeze whole Markdown files or pretend static checks can prove that
-an agent followed the instructions.
+Any remediation after a review pass invalidates every pass over the earlier
+revision. Phase 5 must converge on the unchanged revision delivered at Gate B.
+Branch mode identifies that revision by its HEAD SHA. Workspace mode records
+both the base SHA and a SHA-256 fingerprint of the binary diff.
+
+Validation will enforce structural state sections, fields, and tables; the
+absence of known diary sections; the ordered Phase 4 protocol labels; and
+durable-only ADR template metadata. It deliberately will not lint general
+instruction prose or pretend static checks can prove that an agent followed
+the instructions.
 
 ## Acceptance criteria (EARS)
 
@@ -109,8 +117,8 @@ an agent followed the instructions.
   place and reduce completed detail to a result plus a durable evidence
   reference.
 - WHEN a human approves Gate A or Gate B THE LOOP SHALL preserve the date and
-  exact user wording in `state.md` and SHALL NOT infer approval from CI, PR,
-  commit, checkbox, or artifact state.
+  exact user wording in a dedicated multiline-safe block in `state.md` and
+  SHALL NOT infer approval from CI, PR, commit, checkbox, or artifact state.
 - WHEN an existing loop resumes THE LOOP SHALL read `state.md` first and then
   load only artifacts referenced by the active phase, task, or exception.
 - WHEN test intent is incomplete or only an empty template exists THE LOOP
@@ -124,15 +132,21 @@ an agent followed the instructions.
 - WHEN the active profile is `bugfix` THE LOOP SHALL record a failing
   reproduction before the production fix and passing evidence after it.
 - WHEN source or test code changes after independent review THE LOOP SHALL
-  mark the last reviewed SHA stale and repeat Phase 5.
+  mark the last reviewed SHA stale and repeat every Phase 5 pass against the
+  new revision.
+- WHEN Phase 5 completes THE LOOP SHALL identify the exact reviewed revision
+  and SHALL NOT deliver a different revision at Gate B.
 - WHEN findings remain unresolved or are waived THE LOOP SHALL retain their
   concise status and evidence reference through Gate B.
 - WHEN a new ADR is created THE LOOP SHALL keep the external loop path only in
   `state.md` and SHALL NOT add a `Loop` field or author-local path to committed
   ADR metadata.
 - WHEN the repository validator runs THE SYSTEM SHALL reject a state template
-  missing required cursor or gate fields and SHALL reject a Phase 4 contract
-  that permits test-code edits before persisted test intent.
+  missing or duplicating required cursor or gate fields, incomplete status
+  tables, or an authority section other than exactly Gate A and Gate B.
+- WHEN the repository validator runs THE SYSTEM SHALL reject an ordered Phase
+  4 protocol that does not place planning, persistence, and boundary recording
+  before test editing.
 - WHEN the repository validator runs THE SYSTEM SHALL reject an ADR template
   containing a `Loop` field or author-local loop path.
 
