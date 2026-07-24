@@ -78,12 +78,6 @@ REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 UNRESOLVED_ICON_SVG_RE = re.compile(
     r"<tspan\b[^>]*>\s*\?\s*</tspan>", re.IGNORECASE
 )
-ADR_METADATA_FIELD_RE = re.compile(
-    r"^\s*(?:[-*]\s*)?(?:\*\*)?\s*([^:*]+?)\s*(?:\*\*)?\s*:",
-    re.MULTILINE,
-)
-
-
 class ValidationError(Exception):
     """Raised for any failed check; the message is the failure reason."""
 
@@ -333,7 +327,7 @@ def _check_table_schema(
     path: Path,
     contract_id: str,
     expected_header: tuple[str, ...],
-    expected_row_keys: tuple[str, ...],
+    expected_rows: tuple[tuple[str, ...], ...],
 ) -> list[str]:
     """Validate one fixed template table, including separator and row shape."""
     rows = _markdown_table(text)
@@ -366,28 +360,25 @@ def _check_table_schema(
             f"{path}: contract '{contract_id}.columns' requires "
             f"{column_count} cells in data rows {invalid_widths}"
         )
-    row_keys = tuple(row[0] for row in data_rows if row)
-    if row_keys != expected_row_keys:
+    actual_rows = tuple(tuple(row) for row in data_rows)
+    if actual_rows != expected_rows:
         findings.append(
             f"{path}: contract '{contract_id}.rows' requires exactly "
-            f"{expected_row_keys}, found {row_keys}"
+            f"{expected_rows}, found {actual_rows}"
         )
     return findings
 
 
-def _check_exact_headings(
-    text: str,
-    path: Path,
-    contract_id: str,
-    required: tuple[str, ...],
-) -> list[str]:
-    """Require exact structural headings without constraining section prose."""
-    lines = text.splitlines()
-    return [
-        f"{path}: contract '{contract_id}' requires heading '{heading}' exactly once"
-        for heading in required
-        if lines.count(heading) != 1
-    ]
+def _metadata_field_names(metadata: str) -> set[str]:
+    """Normalize plain and Markdown-decorated field names before comparison."""
+    names: set[str] = set()
+    for line in metadata.splitlines():
+        field, separator, _ = line.partition(":")
+        if not separator:
+            continue
+        field = re.sub(r"^\s*[-*]\s+", "", field)
+        names.add(field.strip().strip("*_`").strip().casefold())
+    return names
 
 
 def check_swe_loop_contract(repo_root: Path) -> list[str]:
@@ -400,29 +391,19 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
 
     findings: list[str] = []
 
-    state_headings = (
+    expected_state_headings = (
         "## Cursor", "## Gate authority", "## Phase status", "## Task status",
         "## Active exceptions", "## Evidence references", "## Compaction rule",
     )
-    findings.extend(
-        _check_exact_headings(
-            state, STATE_TEMPLATE_PATH, "state.sections", state_headings
-        )
+    actual_state_headings = tuple(
+        line for line in state.splitlines() if line.startswith("## ")
     )
-
-    state_lines = state.splitlines()
-    for heading in (
-        "## Phase checklist",
-        "## Diagram evidence",
-        "## Reuse inventory",
-        "## Decision log",
-        "## Zoom-out findings",
-    ):
-        if heading in state_lines:
-            findings.append(
-                f"{STATE_TEMPLATE_PATH}: contract 'state.no-diary-sections' "
-                f"forbids heading '{heading}'"
-            )
+    if actual_state_headings != expected_state_headings:
+        findings.append(
+            f"{STATE_TEMPLATE_PATH}: contract 'state.sections' requires "
+            f"{expected_state_headings}, found {actual_state_headings}"
+        )
+        return findings
 
     cursor_fields = (
         "Profile", "Mode", "Repo / branch", "Worktree", "Started", "Status",
@@ -462,10 +443,22 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
             )
         )
         gate_lines = gate_section.splitlines()
-        if gate_lines.count("```text") != 1 or gate_lines.count("```") != 1:
+        opening = [index for index, line in enumerate(gate_lines) if line == "```text"]
+        closing = [index for index, line in enumerate(gate_lines) if line == "```"]
+        wording = [
+            index
+            for index, line in enumerate(gate_lines)
+            if line.startswith("- **Exact user wording:**")
+        ]
+        fence_valid = (
+            len(wording) == len(opening) == len(closing) == 1
+            and wording[0] < opening[0] < closing[0]
+            and closing[0] > opening[0] + 1
+        )
+        if not fence_valid:
             findings.append(
                 f"{STATE_TEMPLATE_PATH}: contract 'state.gate-{gate.lower()}.wording-block' "
-                "requires one complete text fence"
+                "requires one ordered, non-empty text fence after its field"
             )
 
     table_contracts = (
@@ -473,31 +466,48 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
             "## Phase status",
             "state.phase-status",
             ("Phase", "Status", "Result / evidence reference"),
-            (
-                "0 Design", "1 Plan", "2 Context", "3 Implement", "4 Test",
-                "5 Review", "6 Verify", "7 Deliver", "Close",
-            ),
+            tuple(
+                (phase, "pending / active / blocked / done", "")
+                for phase in (
+                    "0 Design", "1 Plan", "2 Context", "3 Implement", "4 Test",
+                    "5 Review", "6 Verify", "7 Deliver",
+                )
+            ) + (("Close", "pending / done", ""),),
         ),
         (
             "## Task status",
             "state.task-status",
             ("ID", "Status", "Result / evidence reference"),
-            ("T1",),
+            (("T1", "pending / active / blocked / done", ""),),
         ),
         (
             "## Active exceptions",
             "state.active-exceptions",
             ("ID", "Kind", "Status", "Summary", "Evidence reference"),
-            ("",),
+            (("", "finding / waiver", "unresolved / waived", "", ""),),
         ),
         (
             "## Evidence references",
             "state.evidence-references",
             ("Ref", "Owner / purpose", "Path or URL"),
-            ("ADR", "PLAN", "TEST", "EVIDENCE", "DELIVERY"),
+            (
+                ("ADR", "approved design", ""),
+                ("PLAN", "tasks, coverage, reuse inventory", "`plan.md`"),
+                ("TEST", "test intent and results", "`test-plan.md`"),
+                (
+                    "EVIDENCE",
+                    "optional diagram, review, and verification detail",
+                    "`evidence.md` or n/a",
+                ),
+                (
+                    "DELIVERY",
+                    "reviewer-facing summary",
+                    "PR URL or `pr-description.md`",
+                ),
+            ),
         ),
     )
-    for heading, contract_id, header, row_keys in table_contracts:
+    for heading, contract_id, header, expected_rows in table_contracts:
         section = _markdown_section(state, heading, STATE_TEMPLATE_PATH)
         findings.extend(
             _check_table_schema(
@@ -505,7 +515,7 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
                 STATE_TEMPLATE_PATH,
                 contract_id,
                 header,
-                row_keys,
+                expected_rows,
             )
         )
 
@@ -531,10 +541,7 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
         )
 
     adr_metadata = adr_template.partition("## Context")[0]
-    metadata_fields = {
-        match.group(1).strip().casefold()
-        for match in ADR_METADATA_FIELD_RE.finditer(adr_metadata)
-    }
+    metadata_fields = _metadata_field_names(adr_metadata)
     if "loop" in metadata_fields:
         findings.append(
             f"{ADR_TEMPLATE_PATH}: contract 'adr.no-loop-field' forbids a Loop metadata field"

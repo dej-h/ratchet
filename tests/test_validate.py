@@ -314,7 +314,17 @@ class TestSweLoopContract:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
         state.write_text(f"{state.read_text()}\n{heading}\n")
         findings = run_checks(repo)
-        assert any("state.no-diary-sections" in finding for finding in findings)
+        assert any("state.sections" in finding for finding in findings)
+
+    def test_reordered_state_sections_are_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text()
+        text = text.replace("## Cursor", "## TEMP", 1)
+        text = text.replace("## Gate authority", "## Cursor", 1)
+        text = text.replace("## TEMP", "## Gate authority", 1)
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
 
     def test_third_gate_block_is_reported(self, repo: Path) -> None:
         state = repo / "skills" / "swe-loop" / "templates" / "state.md"
@@ -358,6 +368,31 @@ class TestSweLoopContract:
             1,
         )
         state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.gate-a.wording-block" in finding for finding in findings)
+
+    def test_reversed_gate_wording_fence_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "```text\n<verbatim user message | pending>\n```",
+            "```\n<verbatim user message | pending>\n```text",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.gate-a.wording-block" in finding for finding in findings)
+
+    def test_gate_wording_fence_before_field_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        original = (
+            "- **Exact user wording:**\n\n"
+            "```text\n<verbatim user message | pending>\n```"
+        )
+        replacement = (
+            "```text\n<verbatim user message | pending>\n```\n\n"
+            "- **Exact user wording:**"
+        )
+        state.write_text(state.read_text().replace(original, replacement, 1))
         findings = run_checks(repo)
         assert any("state.gate-a.wording-block" in finding for finding in findings)
 
@@ -412,6 +447,38 @@ class TestSweLoopContract:
         findings = run_checks(repo)
         assert any("state.phase-status.rows" in finding for finding in findings)
 
+    @pytest.mark.parametrize(
+        ("original", "replacement", "contract_id"),
+        [
+            (
+                "| 4 Test | pending / active / blocked / done | |",
+                "| 4 Test | | |",
+                "state.phase-status.rows",
+            ),
+            (
+                "| T1 | pending / active / blocked / done | |",
+                "| T1 | | |",
+                "state.task-status.rows",
+            ),
+            (
+                "| | finding / waiver | unresolved / waived | | |",
+                "| | finding / waiver | | | |",
+                "state.active-exceptions.rows",
+            ),
+        ],
+    )
+    def test_empty_status_value_is_reported(
+        self,
+        repo: Path,
+        original: str,
+        replacement: str,
+        contract_id: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, original, replacement)
+        findings = run_checks(repo)
+        assert any(contract_id in finding for finding in findings)
+
     def test_reordered_test_intent_steps_are_reported(self, repo: Path) -> None:
         skill = repo / "skills" / "swe-loop" / "SKILL.md"
         text = skill.read_text()
@@ -450,6 +517,8 @@ class TestSweLoopContract:
             "- **Loop:** external\n",
             "- **Loop**: external\n",
             "** Loop : ** external\n",
+            "- *Loop*: external\n",
+            "- `Loop`: external\n",
             "Loop: external\n",
         ],
     )
