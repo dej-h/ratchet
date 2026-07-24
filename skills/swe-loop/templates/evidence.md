@@ -13,7 +13,16 @@ relevant evidence ID instead of copying this content.
 
 | ID | Pass | Finding | Disposition | Evidence | Reviewed revision |
 |---|---|---|---|---|---|
-| R1 | standards / correctness / zoom-out | | fixed / waived / future loop | | |
+| R1 | standards / correctness / zoom-out | | fixed / waived | | |
+
+## Future-loop candidates
+
+Non-blocking zoom-out observations only. Anything required for the approved
+design remains a review finding and must be fixed or explicitly waived.
+
+| ID | Observation | Expected benefit | Why deferred | Evidence |
+|---|---|---|---|---|
+| F1 | | | outside the approved change boundary | |
 
 ## Verification
 

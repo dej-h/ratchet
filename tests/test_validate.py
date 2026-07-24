@@ -301,6 +301,28 @@ class TestSweLoopContract:
         )
 
     @pytest.mark.parametrize(
+        "duplicate",
+        [
+            "- Profile: duplicate",
+            "* _Profile_: duplicate",
+            "+ `Profile`: duplicate",
+            "Profile: duplicate",
+        ],
+    )
+    def test_alternate_duplicate_cursor_field_is_reported(
+        self,
+        repo: Path,
+        duplicate: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, "## Gate authority", f"{duplicate}\n\n## Gate authority")
+        findings = run_checks(repo)
+        assert any(
+            "state.cursor.profile" in finding and "found 2" in finding
+            for finding in findings
+        )
+
+    @pytest.mark.parametrize(
         "heading",
         [
             "## Phase checklist",
@@ -452,6 +474,34 @@ class TestSweLoopContract:
             "- **Exact user wording:**"
         )
         state.write_text(state.read_text().replace(original, replacement, 1))
+        findings = run_checks(repo)
+        assert any("state.gate-a.wording-block" in finding for finding in findings)
+
+    @pytest.mark.parametrize("blank_wording", ["", "   ", "\t"])
+    def test_blank_gate_wording_is_reported(
+        self,
+        repo: Path,
+        blank_wording: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        gate_a_wording = (
+            "### Gate A\n\n"
+            "- **Status:** pending | approved\n"
+            "- **Date:** <date | pending>\n"
+            "- **Approved revision:** <ADR path + revision | pending>\n"
+            "- **Exact user wording:**\n\n"
+            "```text\n"
+            "<verbatim user message | pending>\n"
+            "```"
+        )
+        replace_once(
+            state,
+            gate_a_wording,
+            gate_a_wording.replace(
+                "<verbatim user message | pending>",
+                blank_wording,
+            ),
+        )
         findings = run_checks(repo)
         assert any("state.gate-a.wording-block" in finding for finding in findings)
 

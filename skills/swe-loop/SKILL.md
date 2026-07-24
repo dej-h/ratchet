@@ -274,9 +274,11 @@ Do — in fresh-context subagents, never the implementing context:
   audits the diff against them.
 - **Correctness pass:** run the code-review skill on the diff.
 - **Zoom-out pass:** would a larger refactor, test factory, or architectural
-  change increase simplicity or flow? Record detailed findings and
-  dispositions in `evidence.md`; never auto-apply them (that would blow the
-  diff budget; they become candidate future loops).
+  change increase simplicity or flow? Classify anything required for the
+  approved design as a finding; it must be fixed or explicitly waived.
+  Record non-blocking improvements separately as future-loop candidates in
+  `evidence.md`; never auto-apply those observations because they are outside
+  the approved change boundary.
 
 **Exit boundary:** every finding is fixed or explicitly waived. A remediation
 invalidates all review passes on the earlier revision, so repeat every pass
@@ -285,8 +287,9 @@ evidence reference in `state.md`; in workspace mode record the base SHA and the
 output of `git diff --binary HEAD | sha256sum`, which includes both staged and
 unstaged tracked changes. The final reviewed revision must
 equal the delivered revision. Keep only unresolved findings and active waivers
-in state. Detailed resolved findings and zoom-out feedback remain in
-`evidence.md`.
+in state. Detailed resolved findings and non-blocking future-loop candidates
+remain in `evidence.md`; a candidate is an observation, not an unresolved
+finding or an additional exit disposition.
 
 ### Phase 6 — Verify against design
 

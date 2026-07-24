@@ -334,13 +334,18 @@ def _check_unique_fields(
     required_fields: tuple[str, ...],
 ) -> list[str]:
     """Require each named field exactly once inside its owning section."""
-    names = re.findall(r"^\s*-\s+\*\*([^*\n]+?):\*\*", text, re.MULTILINE)
+    names = [
+        name
+        for line in text.splitlines()
+        if (name := _markdown_field_name(line)) is not None
+    ]
     return [
         f"{path}: contract '{contract_prefix}."
         f"{re.sub(r'[^a-z0-9]+', '-', field.casefold()).strip('-')}' "
-        f"requires field '{field}' exactly once, found {names.count(field)}"
+        f"requires field '{field}' exactly once, "
+        f"found {names.count(field.casefold())}"
         for field in required_fields
-        if names.count(field) != 1
+        if names.count(field.casefold()) != 1
     ]
 
 
@@ -406,16 +411,23 @@ def _check_table_schema(
     return findings
 
 
+def _markdown_field_name(line: str) -> str | None:
+    """Return a normalized Markdown field name from one colon-delimited line."""
+    field, separator, _ = line.partition(":")
+    if not separator:
+        return None
+    field = re.sub(r"^\s*[-*+]\s+", "", field)
+    normalized = field.strip().strip("*_`").strip().casefold()
+    return normalized or None
+
+
 def _metadata_field_names(metadata: str) -> set[str]:
     """Normalize plain and Markdown-decorated field names before comparison."""
-    names: set[str] = set()
-    for line in metadata.splitlines():
-        field, separator, _ = line.partition(":")
-        if not separator:
-            continue
-        field = re.sub(r"^\s*[-*+]\s+", "", field)
-        names.add(field.strip().strip("*_`").strip().casefold())
-    return names
+    return {
+        name
+        for line in metadata.splitlines()
+        if (name := _markdown_field_name(line)) is not None
+    }
 
 
 def check_swe_loop_contract(repo_root: Path) -> list[str]:
@@ -487,7 +499,10 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
         fence_valid = (
             len(wording) == len(opening) == len(closing) == 1
             and wording[0] < opening[0] < closing[0]
-            and closing[0] > opening[0] + 1
+            and any(
+                line.strip()
+                for line in gate_lines[opening[0] + 1 : closing[0]]
+            )
         )
         if not fence_valid:
             findings.append(
