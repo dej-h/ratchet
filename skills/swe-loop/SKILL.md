@@ -14,15 +14,19 @@ description: >
 
 Operating principle: an expert does all the basics well, every time. This loop
 exists so discipline does not depend on session memory, context freshness, or
-mood. The phases are invariant; the checks inside them vary per profile (see
-Profiles). Progress must always be legible: anyone opening the state file knows
-exactly where the work stands.
+mood. The phase responsibilities and human gates are invariant; profiles may
+change depth and, where explicitly documented, ordering (see Profiles).
+Progress must always be legible: anyone opening the state file knows exactly
+where the work stands.
 
 ## Non-negotiables (every phase)
 
-1. **State file is the source of truth.** Read it before doing anything;
-   update it at every phase transition. Never rely on conversation history to
-   know where the loop stands.
+1. **State file is the execution cursor and gate authority.** Read it before
+   doing anything and update it at every phase transition. It is fixed-shape
+   current state, not an append-only diary. Persist completed detail in its
+   owning artifact, verify the reference exists, then replace the cursor
+   values in place. Never rely on conversation history to know where the loop
+   stands.
 2. **Two human gates only.** Gate A = design approval (end of Phase 0).
    Gate B = delivery review (Phase 7). Never pass a gate without the user
    explicitly approving in the conversation. Everything between gates is
@@ -82,15 +86,22 @@ they create zero PR noise and survive branch switches and worktrees. Per loop
 run, create `~/.claude/swe-loops/<repo-basename>/<slug>/` (slug = short
 kebab-case name):
 
-- `state.md` — mode, phase checklist, decision log, current task pointer
-  (copy from [templates/state.md](templates/state.md))
-- `plan.md` — task breakdown (Phase 1)
-- `test-plan.md` — testing with intent (Phase 4,
+- `state.md`: compact execution cursor, exact gate authority, task status,
+  reviewed revision, active exceptions, and evidence references (copy from
+  [templates/state.md](templates/state.md))
+- `plan.md`: task definitions, review classes, done-checks, analyze coverage,
+  and reuse inventory (Phases 1 and 2)
+- `test-plan.md`: test intent and eventual results (Phase 4,
   template: [templates/test-plan.md](templates/test-plan.md))
-- `pr-description.md` — Gate B summary in workspace mode
+- `evidence.md`: optional detailed diagram, review, and verification evidence
+  that has no more specific owner (copy from
+  [templates/evidence.md](templates/evidence.md))
+- `pr-description.md`: Gate B summary in workspace mode
 
 Only **durable documentation** goes in the repo, because it belongs in the
-PR: the ADR and the architecture overview.
+PR: the ADR and the architecture overview. The author-local loop path belongs
+only in external `state.md`; never write it into a committed ADR or any other
+repository document.
 
 ADR location: `docs/architecture-decisions/NNN-<slug>.md` — create the
 directory if the repo lacks it. Template:
@@ -101,8 +112,11 @@ diagram of how the whole application connects. Create it on the first run in
 a repo that lacks one; update it whenever a loop changes architecture.
 
 **Resume rule:** if invoked and a state file for this work already exists,
-read it and continue from the first unchecked boundary. Never redo completed
-phases; never re-ask for a gate already granted (it is recorded in state.md).
+read it first. Then load only the artifacts referenced by the active phase,
+current task, or active exceptions. Do not load completed phase history by
+default. Continue from the first incomplete boundary; never redo completed
+phases or re-ask for a gate already granted. Exact gate wording in `state.md`
+is the only durable approval authority.
 
 ## Phases
 
@@ -110,6 +124,8 @@ phases; never re-ask for a gate already granted (it is recorded in state.md).
 
 Do:
 - Restate the problem in one paragraph.
+- Create the ADR with durable repository metadata only. External loop paths
+  remain in `state.md` and never appear in the committed ADR.
 - Develop the *real* alternatives. For architectural decisions, spawn 2–3
   **fresh-context subagents in parallel, each independently developing a
   distinct approach** (e.g. minimal / clean-architecture / pragmatic) —
@@ -134,17 +150,18 @@ Do:
   the ADR.
 - For every design diagram that exists before Gate A, render and inspect dark
   and light themes. Record purpose, archetype, rendering mode, source, both
-  inspections, and the guide self-check result in `state.md`. A source-only
+  inspections, and the guide self-check result in `evidence.md`. Keep only
+  the result and its durable evidence reference in `state.md`. A source-only
   diagram is not Gate A evidence.
 
 Skills: write-as-dejan (prose), graphify (codebase understanding),
 deep-research / microsoft-docs (when the decision needs external grounding).
 
 **Exit boundary (GATE A):** ADR written, both diagram themes inspected and
-recorded, architecture doc updated if applicable, and the user has explicitly
-approved. **No source-code edits are allowed before this gate — none.** Record
-the user's approval wording in `state.md`; never infer it from repository or
-CI state.
+referenced, architecture doc updated if applicable, and the user has
+explicitly approved. **No source-code edits are allowed before this gate,
+none.** Record the user's approval wording in `state.md`; never infer it from
+repository or CI state.
 
 ### Phase 1 — Plan
 
@@ -166,7 +183,8 @@ Do:
 - **Generated content is exempt from review effort entirely** — lockfiles,
   generated API clients, snapshots, auto-generated migrations. Mark tasks
   that produce it as `generated` in plan.md so the reviewer knows to skip.
-- Order tasks by dependency; write plan.md; set the task pointer in state.md.
+- Order tasks by dependency; write `plan.md`; set only task IDs, statuses, and
+  the current pointer in `state.md`.
 - **Analyze check — the pre-implementation drift gate.** Read-only
   cross-artifact check (fresh-context subagent when the plan is nontrivial):
   every ADR decision and every EARS criterion maps to at least one task;
@@ -184,14 +202,15 @@ Do:
 - Read repo CLAUDE.md, `.claude/rules/`, and the coding standards
   (`.github/instructions/Coding-Standards.md` where present) before touching
   code.
-- Write a **reuse inventory** into state.md: which existing functions,
+- Write a **reuse inventory** into `plan.md`: which existing functions,
   datamodels, schemas, and utilities this work will use or extend. Search the
   codebase for existing implementations before planning any new one.
 - For each new dependency: confirm it's needed, and that a maintained library
   isn't already doing this better than custom code would.
 
-**Exit boundary:** reuse inventory written. An *empty* inventory for a task
-touching existing domains is a red flag — re-search before proceeding.
+**Exit boundary:** reuse inventory written and referenced by `state.md`. An
+*empty* inventory for a task touching existing domains is a red flag,
+re-search before proceeding.
 
 ### Phase 3 — Implement
 
@@ -199,6 +218,9 @@ Do:
 - One task at a time. Branch mode: commit per task with a clean message.
   Workspace mode: no commits — stage the task's files when it's done, leave
   in-progress work unstaged.
+- For the bugfix profile, do not edit the production fix until the Phase 4
+  test-intent boundary and failing reproduction are recorded. Follow the
+  profile's explicit phase-order exception below.
 - Minimal diff: never reformat, rename, or refactor code the task doesn't
   touch. Review capacity is the throughput bottleneck; every unnecessary
   changed line spends it.
@@ -207,24 +229,42 @@ Do:
 - Dependencies via resolver only (non-negotiable #4).
 
 **Exit boundary (per task):** the task's unit (commit or staged set) contains
-exactly one classifiable concern matching its S/M class from plan.md — no
-mechanical+semantic mixing; `git diff --stat` shows no unrelated file churn.
-Update the task pointer in state.md.
+exactly one classifiable concern matching its S/M class from plan.md, with no
+mechanical and semantic mixing; `git diff --stat` shows no unrelated file
+churn. Update only the task status, current pointer, and evidence reference in
+   `state.md`. Any source or test edit after a Phase 5 review pass, including a
+   remediation made while Phase 5 is active, invalidates that pass, marks the
+   last reviewed revision stale, and requires every review pass again on the new
+   revision.
 
 ### Phase 4 — Test with intent
 
-Do — as a separate turn from implementation:
-- Write `test-plan.md` **first**: what this change needs in terms of testing —
-  behaviors, edge cases, failure modes, integration surfaces, what explicitly
-  won't be tested and why. Intent before code. Start from the ADR's EARS
-  criteria: each criterion maps to at least one test.
-- Then implement the tests per plan. Tests assert behavior, not
-  implementation details.
+Do:
+1. **Plan test intent.** Write `test-plan.md` first: what this change needs in terms of testing,
+   including behaviors, edge cases, failure modes, integration surfaces, and
+   what explicitly will not be tested and why. Start from the ADR's EARS
+   criteria; each criterion maps to at least one test. A copied but empty
+   template does not complete test intent. Every section needs concrete intent
+   or an explicit `none` with a reason.
+2. **Persist test intent.** Save the materially complete `test-plan.md`.
+3. **Record the boundary.** Record the completed test-intent boundary and
+   test-plan reference in `state.md`.
+4. **Edit tests.** Only after the plan and state writes may test-code edits
+   begin. The same agent turn may
+   continue immediately; this is an artifact-ordering boundary, not a human
+   checkpoint or required conversation pause.
+   Implement the tests per plan. Tests assert behavior, not implementation
+   details. Update their result and durable evidence in `test-plan.md` rather
+   than copying output into `state.md`.
 - Use the verify skill to exercise the affected flow end-to-end, not just
   unit tests.
+- For genuinely high-risk work, a fresh-context review of the test plan is an
+  available self-check before step 2. It is not mandatory for every task and
+  never becomes a third human gate.
 
-**Exit boundary:** test-plan.md existed *before* test code was written; every
-planned test is implemented or explicitly deferred with a reason.
+**Exit boundary:** `test-plan.md` and the state boundary existed before test
+code was edited; every planned test is implemented or explicitly deferred
+with a reason.
 
 ### Phase 5 — Independent review
 
@@ -234,12 +274,22 @@ Do — in fresh-context subagents, never the implementing context:
   audits the diff against them.
 - **Correctness pass:** run the code-review skill on the diff.
 - **Zoom-out pass:** would a larger refactor, test factory, or architectural
-  change increase simplicity or flow? **Report findings into the state.md
-  decision log — never auto-apply them** (that would blow the diff budget;
-  they become candidate future loops).
+  change increase simplicity or flow? Classify anything required for the
+  approved design as a finding; it must be fixed or explicitly waived.
+  Record non-blocking improvements separately as future-loop candidates in
+  `evidence.md`; never auto-apply those observations because they are outside
+  the approved change boundary.
 
-**Exit boundary:** every finding is either fixed or explicitly waived with a
-reason in state.md. Zoom-out feedback recorded, not applied.
+**Exit boundary:** every finding is fixed or explicitly waived. A remediation
+invalidates all review passes on the earlier revision, so repeat every pass
+until they converge on one unchanged revision. Record that revision and the
+evidence reference in `state.md`; in workspace mode record the base SHA and the
+output of `git diff --binary HEAD | sha256sum`, which includes both staged and
+unstaged tracked changes. The final reviewed revision must
+equal the delivered revision. Keep only unresolved findings and active waivers
+in state. Detailed resolved findings and non-blocking future-loop candidates
+remain in `evidence.md`; a candidate is an observation, not an unresolved
+finding or an additional exit disposition.
 
 ### Phase 6 — Verify against design
 
@@ -250,13 +300,14 @@ Do:
   passing test. Confirm the architecture diagram is still accurate.
 - If any diagram source changed after Gate A, render every changed diagram in
   dark and light, inspect the final pixels, repeat the guide self-check, and
-  record the evidence in `state.md`. When the repository provides a canonical
-  render/check command, run it too. Passing syntax or CI never replaces the
-  two visual inspections.
+  record the detail in `evidence.md`. When the repository provides a
+  canonical render/check command, run it too. Passing syntax or CI never
+  replaces the two visual inspections.
 
 **Exit boundary:** suite green; changed diagrams have recorded final-theme
 evidence; spec drift is zero, or the ADR was amended and the user informed
-(non-negotiable #6).
+(non-negotiable #6). Keep the compact result and evidence reference in
+`state.md`, not command output or copied verification detail.
 
 ### Phase 7 — Deliver & close
 
@@ -272,22 +323,30 @@ Do:
   - *workspace* — leave the diff reviewable in the working tree (staged =
     done) and write the summary to `pr-description.md` in the loop directory,
     exactly as it would read on a PR. Point the user at both.
+- Confirm the delivered revision still equals the Phase 5 reviewed revision.
+  If it does not, return to Phase 5 before creating or updating the Gate B
+  review surface.
 - After approval only: update durable learnings — repo CLAUDE.md/rules and
   memory (revise-claude-md skill) — so the next loop starts smarter. Mark
-  state.md complete.
+  `state.md` complete and compact it one final time.
 
 **Exit boundary (GATE B):** user reviewed and approved (PR merged/approved,
 or local diff OK'd in chat); learnings persisted; state.md closed.
 
 ## Profiles
 
-The phases never change; their depth does:
+The phase responsibilities and two gates never change. Their depth, and the
+ordering explicitly stated by a profile, can:
 
 - **feature** — full loop as written.
 - **bugfix** — Phase 0 collapses to a short root-cause note in state.md (full
   ADR only if the fix changes architecture; Gate A becomes a quick confirm).
-  Phase 4 requires a *failing reproduction test before the fix* — red, then
-  green.
+  After Phase 2, enter Phase 4 long enough to persist `test-plan.md`, record
+  the test-intent boundary in `state.md`, write and run the reproduction test,
+  and record the observed failure. Only then enter Phase 3 for the production
+  fix. Return to Phase 4 for the passing run and remaining planned coverage.
+  The required order is plan, persisted boundary, red reproduction,
+  production fix, green verification.
 - **db / migration** — Phase 0 must include a rollback/reversibility plan.
   Never run against a non-local database. Phase 6 additionally tests the
   migration both up and down.

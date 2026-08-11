@@ -1,7 +1,7 @@
 {
   "name": "ratchet",
   "description": "Phase-gated SWE workflow for coding agents: ADR-first design with alternatives, review-effort-budgeted tasks, reuse inventory, test-plan-before-tests, fresh-context review, and drift-checked delivery. Ships with the write-as-dejan writing-voice skill.",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "author": {
     "name": "Dejan Honderd",
     "url": "https://github.com/dej-h"

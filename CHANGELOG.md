@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 (2026-07-24)
+
+- Added separate structural and narrative Mermaid conventions, five
+  repository-grounded canonical examples, and an opt-in icon rendering track.
+- Added a locked local Mermaid renderer with deterministic dark/light output,
+  source-to-artifact checks, local Iconify data, and CI diagnostics for render
+  drift.
+- Reduced `state.md` to the current execution cursor, exact gate authority,
+  task status, active exceptions, reviewed revision, and evidence references.
+  Detailed design, test, review, verification, and delivery records now stay
+  in the artifact that owns them.
+- Replaced Phase 4's mandatory conversation pause with a persisted ordering
+  boundary: write `test-plan.md`, record the completed boundary in `state.md`,
+  then edit test code. The bugfix profile keeps red-before-green.
+- Removed author-local loop paths from new committed ADR metadata.
+- Added structural validation for the compact-state, test-intent ordering, and
+  durable ADR template contracts.
+
 ## 0.1.0 (2026-07-19)
 
 Initial release. Bootstraps the repo per ADR 001 (single skills tree, dual

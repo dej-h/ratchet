@@ -2,9 +2,10 @@
 
 Checks the things that are cheap to check deterministically and stdlib-only:
 manifests parse, the four manifests agree on plugin name and version, every
-shipped SKILL.md carries the required frontmatter, and registered canonical
-Mermaid sources, guide projections, and committed icon renders honor their
-restricted contract.
+shipped SKILL.md carries the required frontmatter, the SWE-loop workflow keeps
+its persisted ordering and artifact-ownership contracts, and registered
+canonical Mermaid sources, guide projections, and committed icon renders honor
+their restricted contract.
 
 This is deliberately NOT a substitute for the real per-harness validators.
 Run ``claude plugin validate .`` locally before tagging a release - it is
@@ -35,6 +36,11 @@ MANIFEST_PATHS = {
 }
 
 CANONICAL_REGISTRY_PATH = Path("docs/diagrams/canonical-examples.json")
+SWE_LOOP_SKILL_PATH = Path("skills/swe-loop/SKILL.md")
+STATE_TEMPLATE_PATH = Path("skills/swe-loop/templates/state.md")
+TEST_PLAN_TEMPLATE_PATH = Path("skills/swe-loop/templates/test-plan.md")
+EVIDENCE_TEMPLATE_PATH = Path("skills/swe-loop/templates/evidence.md")
+ADR_TEMPLATE_PATH = Path("skills/swe-loop/templates/adr.md")
 
 Archetype = Literal["structural", "narrative"]
 RenderingMode = Literal["github-native", "icon"]
@@ -72,8 +78,6 @@ REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 UNRESOLVED_ICON_SVG_RE = re.compile(
     r"<tspan\b[^>]*>\s*\?\s*</tspan>", re.IGNORECASE
 )
-
-
 class ValidationError(Exception):
     """Raised for any failed check; the message is the failure reason."""
 
@@ -257,6 +261,359 @@ def check_adr_exists(repo_root: Path) -> list[str]:
     if not adr_dir.exists() or not list(adr_dir.glob("*.md")):
         return ["no ADR found under docs/architecture-decisions/"]
     return []
+
+
+def _read_contract_document(repo_root: Path, path: Path) -> str:
+    """Read one required workflow document with a path-specific failure."""
+    full_path = repo_root / path
+    if not full_path.is_file():
+        raise ValidationError(f"{path}: required SWE-loop contract document is missing")
+    return full_path.read_text(encoding="utf-8")
+
+
+def _markdown_lines_outside_fences(text: str) -> list[tuple[int, str]]:
+    """Return non-code Markdown lines with their zero-based source positions."""
+    visible_lines: list[tuple[int, str]] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for index, line in enumerate(text.splitlines()):
+        stripped = line.lstrip(" ")
+        indentation = len(line) - len(stripped)
+        if indentation > 3:
+            continue
+
+        if fence_character is not None:
+            closing = re.fullmatch(
+                rf"{re.escape(fence_character)}{{{fence_length},}}\s*",
+                stripped,
+            )
+            if closing:
+                fence_character = None
+                fence_length = 0
+            continue
+
+        opening = re.match(r"(`{3,}|~{3,})", stripped)
+        if opening:
+            fence_character = opening.group(1)[0]
+            fence_length = len(opening.group(1))
+            continue
+
+        visible_lines.append((index, line))
+    return visible_lines
+
+
+def _markdown_headings(text: str) -> list[tuple[int, str]]:
+    """Return normalized ATX headings outside fenced or indented code blocks."""
+    headings: list[tuple[int, str]] = []
+    for index, line in _markdown_lines_outside_fences(text):
+        stripped = line.lstrip(" ")
+        match = re.match(
+            r"^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$",
+            stripped,
+        )
+        if match:
+            headings.append((index, f"{match.group(1)} {match.group(2)}"))
+    return headings
+
+
+def _markdown_section(text: str, heading: str, path: Path) -> str:
+    """Return one normalized Markdown section, bounded by its next peer."""
+    lines = text.splitlines()
+    headings = _markdown_headings(text)
+    matches = [index for index, normalized in headings if normalized == heading]
+    if len(matches) != 1:
+        raise ValidationError(
+            f"{path}: contract section '{heading}' must appear exactly once, found {len(matches)}"
+        )
+
+    start = matches[0]
+    heading_level = len(heading.partition(" ")[0])
+    end = len(lines)
+    for index, normalized in headings:
+        if index > start and len(normalized.partition(" ")[0]) == heading_level:
+            end = index
+            break
+    return "\n".join(lines[start:end])
+
+
+def _check_unique_fields(
+    text: str,
+    path: Path,
+    contract_prefix: str,
+    required_fields: tuple[str, ...],
+) -> list[str]:
+    """Require each named field exactly once inside its owning section."""
+    names = [
+        name
+        for line in text.splitlines()
+        if (name := _markdown_field_name(line)) is not None
+    ]
+    return [
+        f"{path}: contract '{contract_prefix}."
+        f"{re.sub(r'[^a-z0-9]+', '-', field.casefold()).strip('-')}' "
+        f"requires field '{field}' exactly once, "
+        f"found {names.count(field.casefold())}"
+        for field in required_fields
+        if names.count(field.casefold()) != 1
+    ]
+
+
+def _markdown_table(text: str) -> list[list[str]]:
+    """Parse the first simple pipe table in a Markdown section."""
+    rows: list[list[str]] = []
+    started = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            if started:
+                break
+            continue
+        started = True
+        rows.append([cell.strip() for cell in stripped.strip("|").split("|")])
+    return rows
+
+
+def _check_table_schema(
+    text: str,
+    path: Path,
+    contract_id: str,
+    expected_header: tuple[str, ...],
+    expected_rows: tuple[tuple[str, ...], ...],
+) -> list[str]:
+    """Validate one fixed template table, including separator and row shape."""
+    rows = _markdown_table(text)
+    findings: list[str] = []
+    if not rows or tuple(rows[0]) != expected_header:
+        found = tuple(rows[0]) if rows else ()
+        findings.append(
+            f"{path}: contract '{contract_id}.header' requires "
+            f"{expected_header}, found {found}"
+        )
+    column_count = len(expected_header)
+    separator_valid = (
+        len(rows) >= 2
+        and len(rows[1]) == column_count
+        and all(re.fullmatch(r":?-{3,}:?", cell) for cell in rows[1])
+    )
+    if not separator_valid:
+        findings.append(
+            f"{path}: contract '{contract_id}.separator' requires "
+            f"{column_count} Markdown separator cells"
+        )
+
+    data_rows = rows[2:] if len(rows) >= 2 else []
+    invalid_widths = [
+        index for index, row in enumerate(data_rows, start=1)
+        if len(row) != column_count
+    ]
+    if invalid_widths:
+        findings.append(
+            f"{path}: contract '{contract_id}.columns' requires "
+            f"{column_count} cells in data rows {invalid_widths}"
+        )
+    actual_rows = tuple(tuple(row) for row in data_rows)
+    if actual_rows != expected_rows:
+        findings.append(
+            f"{path}: contract '{contract_id}.rows' requires exactly "
+            f"{expected_rows}, found {actual_rows}"
+        )
+    return findings
+
+
+def _markdown_field_name(line: str) -> str | None:
+    """Return a normalized Markdown field name from one colon-delimited line."""
+    field, separator, _ = line.partition(":")
+    if not separator:
+        return None
+    field = re.sub(r"^\s*[-*+]\s+", "", field)
+    normalized = field.strip().strip("*_`").strip().casefold()
+    return normalized or None
+
+
+def _metadata_field_names(metadata: str) -> set[str]:
+    """Normalize plain and Markdown-decorated field names before comparison."""
+    return {
+        name
+        for line in metadata.splitlines()
+        if (name := _markdown_field_name(line)) is not None
+    }
+
+
+def check_swe_loop_contract(repo_root: Path) -> list[str]:
+    """Validate stable structure for the three SWE-loop documentation contracts."""
+    skill = _read_contract_document(repo_root, SWE_LOOP_SKILL_PATH)
+    state = _read_contract_document(repo_root, STATE_TEMPLATE_PATH)
+    _read_contract_document(repo_root, TEST_PLAN_TEMPLATE_PATH)
+    _read_contract_document(repo_root, EVIDENCE_TEMPLATE_PATH)
+    adr_template = _read_contract_document(repo_root, ADR_TEMPLATE_PATH)
+
+    findings: list[str] = []
+
+    expected_state_headings = (
+        "# Loop state: <slug>",
+        "## Cursor", "## Gate authority", "### Gate A", "### Gate B",
+        "## Phase status", "## Task status", "## Active exceptions",
+        "## Evidence references", "## Compaction rule",
+    )
+    actual_state_headings = tuple(
+        heading
+        for _, heading in _markdown_headings(state)
+    )
+    if actual_state_headings != expected_state_headings:
+        findings.append(
+            f"{STATE_TEMPLATE_PATH}: contract 'state.sections' requires "
+            f"{expected_state_headings}, found {actual_state_headings}"
+        )
+        return findings
+
+    cursor_fields = (
+        "Profile", "Mode", "Repo / branch", "Worktree", "Started", "Status",
+        "Current phase", "Current boundary", "Current task", "Next action", "ADR",
+        "Test intent", "Bugfix reproduction", "Last reviewed revision",
+        "Review evidence",
+    )
+    cursor = _markdown_section(state, "## Cursor", STATE_TEMPLATE_PATH)
+    findings.extend(
+        _check_unique_fields(
+            cursor,
+            STATE_TEMPLATE_PATH,
+            "state.cursor",
+            cursor_fields,
+        )
+    )
+
+    gate_authority = _markdown_section(state, "## Gate authority", STATE_TEMPLATE_PATH)
+    for gate in ("A", "B"):
+        gate_section = _markdown_section(
+            gate_authority,
+            f"### Gate {gate}",
+            STATE_TEMPLATE_PATH,
+        )
+        findings.extend(
+            _check_unique_fields(
+                gate_section,
+                STATE_TEMPLATE_PATH,
+                f"state.gate-{gate.lower()}",
+                ("Status", "Date", "Approved revision", "Exact user wording"),
+            )
+        )
+        gate_lines = gate_section.splitlines()
+        opening = [index for index, line in enumerate(gate_lines) if line == "```text"]
+        closing = [index for index, line in enumerate(gate_lines) if line == "```"]
+        wording = [
+            index
+            for index, line in enumerate(gate_lines)
+            if line.startswith("- **Exact user wording:**")
+        ]
+        fence_valid = (
+            len(wording) == len(opening) == len(closing) == 1
+            and wording[0] < opening[0] < closing[0]
+            and any(
+                line.strip()
+                for line in gate_lines[opening[0] + 1 : closing[0]]
+            )
+        )
+        if not fence_valid:
+            findings.append(
+                f"{STATE_TEMPLATE_PATH}: contract 'state.gate-{gate.lower()}.wording-block' "
+                "requires one ordered, non-empty text fence after its field"
+            )
+
+    table_contracts = (
+        (
+            "## Phase status",
+            "state.phase-status",
+            ("Phase", "Status", "Result / evidence reference"),
+            tuple(
+                (phase, "pending / active / blocked / done", "")
+                for phase in (
+                    "0 Design", "1 Plan", "2 Context", "3 Implement", "4 Test",
+                    "5 Review", "6 Verify", "7 Deliver",
+                )
+            ) + (("Close", "pending / done", ""),),
+        ),
+        (
+            "## Task status",
+            "state.task-status",
+            ("ID", "Status", "Result / evidence reference"),
+            (("T1", "pending / active / blocked / done", ""),),
+        ),
+        (
+            "## Active exceptions",
+            "state.active-exceptions",
+            ("ID", "Kind", "Status", "Summary", "Evidence reference"),
+            (("", "finding / waiver", "unresolved / waived", "", ""),),
+        ),
+        (
+            "## Evidence references",
+            "state.evidence-references",
+            ("Ref", "Owner / purpose", "Path or URL"),
+            (
+                ("ADR", "approved design", ""),
+                ("PLAN", "tasks, coverage, reuse inventory", "`plan.md`"),
+                ("TEST", "test intent and results", "`test-plan.md`"),
+                (
+                    "EVIDENCE",
+                    "optional diagram, review, and verification detail",
+                    "`evidence.md` or n/a",
+                ),
+                (
+                    "DELIVERY",
+                    "reviewer-facing summary",
+                    "PR URL or `pr-description.md`",
+                ),
+            ),
+        ),
+    )
+    for heading, contract_id, header, expected_rows in table_contracts:
+        section = _markdown_section(state, heading, STATE_TEMPLATE_PATH)
+        findings.extend(
+            _check_table_schema(
+                section,
+                STATE_TEMPLATE_PATH,
+                contract_id,
+                header,
+                expected_rows,
+            )
+        )
+
+    phase_four = _markdown_section(skill, "### Phase 4 — Test with intent", SWE_LOOP_SKILL_PATH)
+    phase_four_steps: list[tuple[int, str]] = []
+    for _, line in _markdown_lines_outside_fences(phase_four):
+        match = re.match(r"^(\d+)\.\s+\*\*([^*]+)\*\*", line.lstrip(" "))
+        if match:
+            phase_four_steps.append(
+                (int(match.group(1)), match.group(2).removesuffix("."))
+            )
+    required_steps = [
+        (1, "Plan test intent"),
+        (2, "Persist test intent"),
+        (3, "Record the boundary"),
+        (4, "Edit tests"),
+    ]
+    if phase_four_steps != required_steps:
+        findings.append(
+            f"{SWE_LOOP_SKILL_PATH}: contract 'phase4.persisted-test-intent' "
+            f"requires ordered steps {required_steps}, found {phase_four_steps}"
+        )
+
+    adr_metadata = adr_template.partition("## Context")[0]
+    metadata_fields = _metadata_field_names(adr_metadata)
+    if "loop" in metadata_fields:
+        findings.append(
+            f"{ADR_TEMPLATE_PATH}: contract 'adr.no-loop-field' forbids a Loop metadata field"
+        )
+    normalized_metadata = adr_metadata.replace("\\", "/").casefold()
+    local_loop_path = re.compile(
+        r"(?:\.claude/swe-loops|docs/loops)(?![a-z0-9_.-])"
+    )
+    if local_loop_path.search(normalized_metadata):
+        findings.append(
+            f"{ADR_TEMPLATE_PATH}: contract 'adr.no-local-loop-reference' "
+            "forbids author-local loop paths in ADR metadata"
+        )
+
+    return findings
 
 
 def _require_mapping(value: object, context: str) -> dict[str, object]:
@@ -723,6 +1080,7 @@ def run_checks(repo_root: Path) -> list[str]:
         check_manifests_consistent,
         check_skill_frontmatter,
         check_adr_exists,
+        check_swe_loop_contract,
         check_canonical_diagrams,
     ):
         try:
@@ -742,7 +1100,10 @@ def main() -> int:
             print(f"  - {finding}")
         return 1
 
-    print("PASS: manifests, skills, ADRs, and canonical diagrams are structurally valid.")
+    print(
+        "PASS: manifests, skills, SWE-loop contracts, ADRs, and canonical diagrams "
+        "are structurally valid."
+    )
     print("Reminder: run 'claude plugin validate .' locally for the authoritative")
     print("Claude Code check - this script does not replace it.")
     return 0

@@ -2,8 +2,8 @@
 
 Every failure case here is either a reviewer-reproduced bug from this repo's
 own Phase 5 review (KeyError crash, never-closed-frontmatter false PASS) or
-a check the validator explicitly claims to make. Fixture repos are built in
-tmp_path so the tests never depend on this repo's own current state.
+a check the validator explicitly claims to make. Fixture repos copy the
+shipped SWE-loop contract into `tmp_path`, then mutate that isolated copy.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from tools.validate import parse_frontmatter, run_checks
 
 PLUGIN_NAME = "ratchet"
 VERSION = "0.1.0"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 PALETTE = """    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
     classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
@@ -31,7 +32,7 @@ def write_canonical_fixture(root: Path) -> None:
     diagrams = root / "docs" / "diagrams"
     guide = root / "skills" / "swe-loop" / "mermaid-guide.md"
     diagrams.mkdir(parents=True)
-    guide.parent.mkdir(parents=True)
+    guide.parent.mkdir(parents=True, exist_ok=True)
     source = 'graph LR\n    A["Caller"]\n    B["Service"]\n    A -->|"HTTPS"| B\n'
     (diagrams / "example.mmd").write_text(source)
     guide.write_text(f"<!-- canonical-mermaid: example -->\n```mermaid\n{source}```\n")
@@ -76,6 +77,7 @@ def build_fixture_repo(root: Path) -> None:
         "---\nname: demo\ndescription: a demo skill\n---\n\n# Demo\n"
     )
     (root / "docs" / "architecture-decisions" / "001-demo.md").write_text("# ADR 001\n")
+    write_swe_loop_contract_fixture(root)
     write_canonical_fixture(root)
 
 
@@ -91,6 +93,28 @@ def rewrite_json(path: Path, mutate) -> None:
     data = json.loads(path.read_text())
     mutate(data)
     path.write_text(json.dumps(data))
+
+
+def write_swe_loop_contract_fixture(root: Path) -> None:
+    """Copy the shipped contract so mutations test the actual release surface."""
+    contract_paths = (
+        Path("skills/swe-loop/SKILL.md"),
+        Path("skills/swe-loop/templates/state.md"),
+        Path("skills/swe-loop/templates/test-plan.md"),
+        Path("skills/swe-loop/templates/evidence.md"),
+        Path("skills/swe-loop/templates/adr.md"),
+    )
+    for relative_path in contract_paths:
+        target = root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((PROJECT_ROOT / relative_path).read_text())
+
+
+def replace_once(path: Path, old: str, new: str) -> None:
+    """Replace one fixture marker and fail loudly if the fixture drifted."""
+    text = path.read_text()
+    assert text.count(old) == 1, f"expected one occurrence of {old!r} in {path}"
+    path.write_text(text.replace(old, new, 1))
 
 
 def registry_path(root: Path) -> Path:
@@ -201,6 +225,7 @@ class TestSkillFrontmatter:
 
     def test_empty_skills_dir_is_reported(self, repo: Path) -> None:
         (repo / "skills" / "demo" / "SKILL.md").unlink()
+        (repo / "skills" / "swe-loop" / "SKILL.md").unlink()
         findings = run_checks(repo)
         assert any("no skills/*/SKILL.md" in finding for finding in findings)
 
@@ -210,6 +235,461 @@ class TestAdrPresence:
         (repo / "docs" / "architecture-decisions" / "001-demo.md").unlink()
         findings = run_checks(repo)
         assert any("no ADR found" in finding for finding in findings)
+
+
+class TestSweLoopContract:
+    @pytest.mark.parametrize(
+        ("marker", "contract_id"),
+        [
+            ("- **Profile:**", "state.cursor.profile"),
+            ("- **Mode:**", "state.cursor.mode"),
+            ("- **Repo / branch:**", "state.cursor.repo-branch"),
+            ("- **Worktree:**", "state.cursor.worktree"),
+            ("- **Started:**", "state.cursor.started"),
+            ("- **Status:** in progress", "state.cursor.status"),
+            ("- **Current phase:**", "state.cursor.current-phase"),
+            ("- **Current boundary:**", "state.cursor.current-boundary"),
+            ("- **Current task:**", "state.cursor.current-task"),
+            ("- **Next action:**", "state.cursor.next-action"),
+            ("- **ADR:**", "state.cursor.adr"),
+            ("- **Test intent:**", "state.cursor.test-intent"),
+            ("- **Bugfix reproduction:**", "state.cursor.bugfix-reproduction"),
+            (
+                "- **Last reviewed revision:**",
+                "state.cursor.last-reviewed-revision",
+            ),
+            ("- **Review evidence:**", "state.cursor.review-evidence"),
+        ],
+    )
+    def test_missing_cursor_field_is_reported(
+        self,
+        repo: Path,
+        marker: str,
+        contract_id: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, marker, f"removed {contract_id}")
+        findings = run_checks(repo)
+        assert any(contract_id in finding for finding in findings)
+
+    def test_cursor_field_moved_to_another_section_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text()
+        profile_line = next(
+            line for line in text.splitlines() if line.startswith("- **Profile:**")
+        )
+        text = text.replace(f"{profile_line}\n", "", 1)
+        text = text.replace(
+            "## Gate authority\n",
+            f"## Gate authority\n\n{profile_line}\n",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.cursor.profile" in finding for finding in findings)
+
+    def test_duplicate_cursor_field_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        profile_line = next(
+            line for line in state.read_text().splitlines() if line.startswith("- **Profile:**")
+        )
+        replace_once(state, profile_line, f"{profile_line}\n{profile_line}")
+        findings = run_checks(repo)
+        assert any(
+            "state.cursor.profile" in finding and "found 2" in finding
+            for finding in findings
+        )
+
+    @pytest.mark.parametrize(
+        "duplicate",
+        [
+            "- Profile: duplicate",
+            "* _Profile_: duplicate",
+            "+ `Profile`: duplicate",
+            "Profile: duplicate",
+        ],
+    )
+    def test_alternate_duplicate_cursor_field_is_reported(
+        self,
+        repo: Path,
+        duplicate: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, "## Gate authority", f"{duplicate}\n\n## Gate authority")
+        findings = run_checks(repo)
+        assert any(
+            "state.cursor.profile" in finding and "found 2" in finding
+            for finding in findings
+        )
+
+    @pytest.mark.parametrize(
+        "heading",
+        [
+            "## Phase checklist",
+            "## Diagram evidence",
+            "## Reuse inventory",
+            "## Decision log",
+            "## Zoom-out findings",
+            "# Decision log",
+            "### Decision log",
+            "#### Decision log",
+            "##### Decision log",
+            "###### Decision log",
+        ],
+    )
+    def test_diary_heading_is_reported(self, repo: Path, heading: str) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        state.write_text(f"{state.read_text()}\n{heading}\n")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
+    def test_reordered_state_sections_are_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text()
+        text = text.replace("## Cursor", "## TEMP", 1)
+        text = text.replace("## Gate authority", "## Cursor", 1)
+        text = text.replace("## TEMP", "## Gate authority", 1)
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
+    def test_unknown_third_level_state_section_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        state.write_text(f"{state.read_text()}\n### Decision log\n")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
+    @pytest.mark.parametrize("heading", ["   ## Notes", "   ### Gate C"])
+    def test_indented_unknown_state_section_is_reported(
+        self,
+        repo: Path,
+        heading: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        state.write_text(f"{state.read_text()}\n{heading}\n")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
+    @pytest.mark.parametrize("heading", ["## Cursor", "### Gate A"])
+    def test_indented_required_heading_is_accepted(
+        self,
+        repo: Path,
+        heading: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, heading, f"   {heading}")
+        assert run_checks(repo) == []
+
+    def test_space_delimited_atx_closing_hash_is_accepted(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, "## Cursor", "## Cursor #")
+        assert run_checks(repo) == []
+
+    def test_attached_trailing_hash_changes_heading_name(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, "## Cursor", "## Cursor#")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
+    def test_heading_in_gate_wording_is_not_a_state_section(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "<verbatim user message | pending>",
+            "## Notes",
+        )
+        state.write_text(text)
+        assert run_checks(repo) == []
+
+    def test_third_gate_block_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, "## Phase status", "### Gate C\n\n## Phase status")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
+    def test_differently_named_third_gate_block_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, "## Phase status", "### Approval C\n\n## Phase status")
+        findings = run_checks(repo)
+        assert any("state.sections" in finding for finding in findings)
+
+    def test_missing_gate_field_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "- **Date:** <date | pending>",
+            "removed gate date",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any("state.gate-a.date" in finding for finding in findings)
+
+    def test_gate_wording_without_text_fence_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "```text\n<verbatim user message | pending>\n```",
+            "<verbatim user message | pending>",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any(
+            contract_id in finding
+            for contract_id in ("state.sections", "state.gate-a.wording-block")
+            for finding in findings
+        )
+
+    def test_unclosed_gate_wording_fence_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "<verbatim user message | pending>\n```",
+            "<verbatim user message | pending>",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any(
+            contract_id in finding
+            for contract_id in ("state.sections", "state.gate-a.wording-block")
+            for finding in findings
+        )
+
+    def test_reversed_gate_wording_fence_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        text = state.read_text().replace(
+            "```text\n<verbatim user message | pending>\n```",
+            "```\n<verbatim user message | pending>\n```text",
+            1,
+        )
+        state.write_text(text)
+        findings = run_checks(repo)
+        assert any(
+            contract_id in finding
+            for contract_id in ("state.sections", "state.gate-a.wording-block")
+            for finding in findings
+        )
+
+    def test_gate_wording_fence_before_field_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        original = (
+            "- **Exact user wording:**\n\n"
+            "```text\n<verbatim user message | pending>\n```"
+        )
+        replacement = (
+            "```text\n<verbatim user message | pending>\n```\n\n"
+            "- **Exact user wording:**"
+        )
+        state.write_text(state.read_text().replace(original, replacement, 1))
+        findings = run_checks(repo)
+        assert any("state.gate-a.wording-block" in finding for finding in findings)
+
+    @pytest.mark.parametrize("blank_wording", ["", "   ", "\t"])
+    def test_blank_gate_wording_is_reported(
+        self,
+        repo: Path,
+        blank_wording: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        gate_a_wording = (
+            "### Gate A\n\n"
+            "- **Status:** pending | approved\n"
+            "- **Date:** <date | pending>\n"
+            "- **Approved revision:** <ADR path + revision | pending>\n"
+            "- **Exact user wording:**\n\n"
+            "```text\n"
+            "<verbatim user message | pending>\n"
+            "```"
+        )
+        replace_once(
+            state,
+            gate_a_wording,
+            gate_a_wording.replace(
+                "<verbatim user message | pending>",
+                blank_wording,
+            ),
+        )
+        findings = run_checks(repo)
+        assert any("state.gate-a.wording-block" in finding for finding in findings)
+
+    @pytest.mark.parametrize(
+        ("old", "contract_id"),
+        [
+            ("| Phase | Status | Result / evidence reference |", "state.phase-status.header"),
+            (
+                "| 4 Test | pending / active / blocked / done | |",
+                "state.phase-status.rows",
+            ),
+            ("| ID | Status | Result / evidence reference |", "state.task-status.header"),
+            (
+                "| T1 | pending / active / blocked / done | |",
+                "state.task-status.rows",
+            ),
+            ("| Ref | Owner / purpose | Path or URL |", "state.evidence-references.header"),
+            (
+                "| DELIVERY | reviewer-facing summary | PR URL or `pr-description.md` |",
+                "state.evidence-references.rows",
+            ),
+        ],
+    )
+    def test_incomplete_state_table_is_reported(
+        self,
+        repo: Path,
+        old: str,
+        contract_id: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, old, f"| removed {contract_id} |")
+        findings = run_checks(repo)
+        assert any(contract_id in finding for finding in findings)
+
+    def test_missing_table_separator_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        state.write_text(state.read_text().replace("|---|---|---|", "", 1))
+        findings = run_checks(repo)
+        assert any("state.phase-status.separator" in finding for finding in findings)
+
+    def test_short_table_row_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        original = "| 4 Test | pending / active / blocked / done | |"
+        replace_once(state, original, "| 4 Test |")
+        findings = run_checks(repo)
+        assert any("state.phase-status.columns" in finding for finding in findings)
+
+    def test_duplicate_required_table_row_is_reported(self, repo: Path) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        row = "| 4 Test | pending / active / blocked / done | |"
+        replace_once(state, row, f"{row}\n{row}")
+        findings = run_checks(repo)
+        assert any("state.phase-status.rows" in finding for finding in findings)
+
+    @pytest.mark.parametrize(
+        ("original", "replacement", "contract_id"),
+        [
+            (
+                "| 4 Test | pending / active / blocked / done | |",
+                "| 4 Test | | |",
+                "state.phase-status.rows",
+            ),
+            (
+                "| T1 | pending / active / blocked / done | |",
+                "| T1 | | |",
+                "state.task-status.rows",
+            ),
+            (
+                "| | finding / waiver | unresolved / waived | | |",
+                "| | finding / waiver | | | |",
+                "state.active-exceptions.rows",
+            ),
+        ],
+    )
+    def test_empty_status_value_is_reported(
+        self,
+        repo: Path,
+        original: str,
+        replacement: str,
+        contract_id: str,
+    ) -> None:
+        state = repo / "skills" / "swe-loop" / "templates" / "state.md"
+        replace_once(state, original, replacement)
+        findings = run_checks(repo)
+        assert any(contract_id in finding for finding in findings)
+
+    def test_reordered_test_intent_steps_are_reported(self, repo: Path) -> None:
+        skill = repo / "skills" / "swe-loop" / "SKILL.md"
+        text = skill.read_text()
+        text = text.replace(
+            "1. **Plan test intent.**",
+            "1. **Persist test intent.**",
+            1,
+        )
+        text = text.replace(
+            "2. **Persist test intent.**",
+            "2. **Plan test intent.**",
+            1,
+        )
+        skill.write_text(text)
+        findings = run_checks(repo)
+        assert any("phase4.persisted-test-intent" in finding for finding in findings)
+
+    def test_reversed_test_intent_ordinals_are_reported(self, repo: Path) -> None:
+        skill = repo / "skills" / "swe-loop" / "SKILL.md"
+        text = skill.read_text()
+        replacements = (
+            ("1. **Plan test intent.**", "4. **Plan test intent.**"),
+            ("2. **Persist test intent.**", "3. **Persist test intent.**"),
+            ("3. **Record the boundary.**", "2. **Record the boundary.**"),
+            ("4. **Edit tests.**", "1. **Edit tests.**"),
+        )
+        for old, new in replacements:
+            text = text.replace(old, new, 1)
+        skill.write_text(text)
+        findings = run_checks(repo)
+        assert any("phase4.persisted-test-intent" in finding for finding in findings)
+
+    def test_fenced_test_intent_step_is_reported(self, repo: Path) -> None:
+        skill = repo / "skills" / "swe-loop" / "SKILL.md"
+        replace_once(
+            skill,
+            "1. **Plan test intent.** Write `test-plan.md` first:",
+            (
+                "```markdown\n"
+                "1. **Plan test intent.**\n"
+                "```\n\n"
+                "Plan test intent, then write `test-plan.md` first:"
+            ),
+        )
+        findings = run_checks(repo)
+        assert any("phase4.persisted-test-intent" in finding for finding in findings)
+
+    @pytest.mark.parametrize(
+        "loop_field",
+        [
+            "- **Loop:** external\n",
+            "- **Loop**: external\n",
+            "** Loop : ** external\n",
+            "- *Loop*: external\n",
+            "- `Loop`: external\n",
+            "+ **Loop:** external\n",
+            "Loop: external\n",
+        ],
+    )
+    def test_adr_loop_field_is_reported(self, repo: Path, loop_field: str) -> None:
+        adr = repo / "skills" / "swe-loop" / "templates" / "adr.md"
+        replace_once(adr, "\n## Context", f"\n{loop_field}\n## Context")
+        findings = run_checks(repo)
+        assert any("adr.no-loop-field" in finding for finding in findings)
+        assert not any("adr.no-local-loop-reference" in finding for finding in findings)
+
+    @pytest.mark.parametrize(
+        "local_metadata",
+        [
+            "- **Notes:** docs/loops/example/\n",
+            "- **Notes:** docs/loops\n",
+            "- **Notes:** ~/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** ~/.claude/swe-loops\n",
+            "- **Notes:** $HOME/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** /home/dejan/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** /Users/dejan/.claude/swe-loops/repo/slug/\n",
+            "- **Notes:** C:\\Users\\dejan\\.claude\\swe-loops\\repo\\slug\\\n",
+        ],
+    )
+    def test_local_adr_path_is_reported(
+        self,
+        repo: Path,
+        local_metadata: str,
+    ) -> None:
+        adr = repo / "skills" / "swe-loop" / "templates" / "adr.md"
+        replace_once(adr, "\n## Context", f"\n{local_metadata}\n## Context")
+        findings = run_checks(repo)
+        assert any("adr.no-local-loop-reference" in finding for finding in findings)
+        assert not any("adr.no-loop-field" in finding for finding in findings)
+
+    def test_missing_contract_document_is_a_finding(self, repo: Path) -> None:
+        (repo / "skills" / "swe-loop" / "templates" / "evidence.md").unlink()
+        findings = run_checks(repo)
+        assert any(
+            "required SWE-loop contract document is missing" in finding
+            for finding in findings
+        )
 
 
 class TestCanonicalRegistry:

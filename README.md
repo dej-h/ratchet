@@ -67,5 +67,5 @@ suites, and the canonical render check on every push and PR.
 
 ## Status
 
-Private, 0.1.0. This repo is the swe-loop workflow itself, dogfooded to
+Private, 0.3.0. This repo is the swe-loop workflow itself, dogfooded to
 build itself: its own first feature went through the loop it implements.

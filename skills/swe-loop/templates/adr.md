@@ -2,7 +2,6 @@
 
 - **Status:** proposed | accepted | superseded by NNN
 - **Date:** <date>
-- **Loop:** docs/loops/<slug>/
 
 ## Context
 
