@@ -42,6 +42,13 @@ TEST_PLAN_TEMPLATE_PATH = Path("skills/swe-loop/templates/test-plan.md")
 EVIDENCE_TEMPLATE_PATH = Path("skills/swe-loop/templates/evidence.md")
 ADR_TEMPLATE_PATH = Path("skills/swe-loop/templates/adr.md")
 
+ADR_PATH_RESOLUTION_MARKERS = (
+    "1. **Explicit direction** — follow a repository instruction or user choice.",
+    "2. **Existing convention** — inspect repository ADRs and preserve their",
+    "3. **Descriptive fallback** — when no ADR convention exists, create",
+    "`docs/architecture-decisions/<slug>.md`. Do not introduce a sequence number.",
+)
+
 Archetype = Literal["structural", "narrative"]
 RenderingMode = Literal["github-native", "icon"]
 
@@ -440,7 +447,7 @@ def _metadata_field_names(metadata: str) -> set[str]:
 
 
 def check_swe_loop_contract(repo_root: Path) -> list[str]:
-    """Validate stable structure for the three SWE-loop documentation contracts."""
+    """Validate stable structure for the SWE-loop documentation contracts."""
     skill = _read_contract_document(repo_root, SWE_LOOP_SKILL_PATH)
     state = _read_contract_document(repo_root, STATE_TEMPLATE_PATH)
     _read_contract_document(repo_root, TEST_PLAN_TEMPLATE_PATH)
@@ -595,6 +602,16 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
         findings.append(
             f"{SWE_LOOP_SKILL_PATH}: contract 'phase4.persisted-test-intent' "
             f"requires ordered steps {required_steps}, found {phase_four_steps}"
+        )
+
+    missing_adr_path_markers = tuple(
+        marker for marker in ADR_PATH_RESOLUTION_MARKERS if marker not in skill
+    )
+    if missing_adr_path_markers:
+        findings.append(
+            f"{SWE_LOOP_SKILL_PATH}: contract 'adr.path-resolution' requires "
+            "explicit direction, existing-convention, and descriptive-fallback "
+            f"guidance; missing {missing_adr_path_markers}"
         )
 
     adr_metadata = adr_template.partition("## Context")[0]

@@ -641,7 +641,26 @@ class TestSweLoopContract:
         assert any("phase4.persisted-test-intent" in finding for finding in findings)
 
     @pytest.mark.parametrize(
-        "loop_field",
+        "marker",
+        [
+            "1. **Explicit direction** — follow a repository instruction or user choice.",
+            "2. **Existing convention** — inspect repository ADRs and preserve their",
+            "3. **Descriptive fallback** — when no ADR convention exists, create",
+            "`docs/architecture-decisions/<slug>.md`. Do not introduce a sequence number.",
+        ],
+    )
+    def test_missing_adr_path_resolution_guidance_is_reported(
+        self,
+        repo: Path,
+        marker: str,
+    ) -> None:
+        skill = repo / "skills" / "swe-loop" / "SKILL.md"
+        replace_once(skill, marker, "removed ADR path resolution guidance")
+        findings = run_checks(repo)
+        assert any("adr.path-resolution" in finding for finding in findings)
+
+    @pytest.mark.parametrize(
+    "loop_field",
         [
             "- **Loop:** external\n",
             "- **Loop**: external\n",

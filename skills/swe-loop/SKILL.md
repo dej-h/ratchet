@@ -103,9 +103,19 @@ PR: the ADR and the architecture overview. The author-local loop path belongs
 only in external `state.md`; never write it into a committed ADR or any other
 repository document.
 
-ADR location: `docs/architecture-decisions/NNN-<slug>.md` — create the
-directory if the repo lacks it. Template:
-[templates/adr.md](templates/adr.md).
+**ADR path resolution:** decide the location and filename before creating an
+ADR. Follow this precedence order:
+
+1. **Explicit direction** — follow a repository instruction or user choice.
+2. **Existing convention** — inspect repository ADRs and preserve their
+   directory and filename convention. Keep numbered filenames only when the
+   repository already uses them.
+3. **Descriptive fallback** — when no ADR convention exists, create
+   `docs/architecture-decisions/<slug>.md`. Do not introduce a sequence number.
+
+Create `docs/architecture-decisions/` only when neither an explicit location
+nor an existing ADR directory is available. Never rename existing ADRs as part
+of this resolution. Template: [templates/adr.md](templates/adr.md).
 
 Architecture overview: maintain `docs/architecture.md` — a mermaid system
 diagram of how the whole application connects. Create it on the first run in
@@ -124,6 +134,9 @@ is the only durable approval authority.
 
 Do:
 - Restate the problem in one paragraph.
+- Before creating the ADR, inspect repository instructions and existing ADRs
+  to resolve its path using the artifact-location precedence above. Record the
+  selected convention in the ADR context when it materially affects review.
 - Create the ADR with durable repository metadata only. External loop paths
   remain in `state.md` and never appear in the committed ADR.
 - Develop the *real* alternatives. For architectural decisions, spawn 2–3
