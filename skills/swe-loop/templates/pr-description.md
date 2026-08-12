@@ -16,10 +16,15 @@ delta to `docs/architecture.md` if the overall picture moved.
 %% actual question about this change
 ```
 
-## What was tested
+## Manual testing
 
-From test-plan.md: behaviors covered, edge cases, what was explicitly not
-tested and why. Full-suite result.
+Include this section only for hands-on verification that CI cannot expose:
+browser flows, provider-backed requests, device behavior, or
+live-environment checks. State what was observed, not the local command or
+pass count. Delete this section entirely when no hands-on verification was
+performed.
+
+-
 
 ## Review guide
 

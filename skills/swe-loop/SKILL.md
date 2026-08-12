@@ -328,7 +328,13 @@ Do:
 - Write the summary via write-as-dejan: what changed, what was tested,
   architectural changes if any, review guide per task (S/M classes).
   Reference the ADR; include the right diagrams per
-  [mermaid-guide.md](mermaid-guide.md).
+  [mermaid-guide.md](mermaid-guide.md). Keep automated commands, pass counts,
+  and detailed results in `state.md`, `test-plan.md`, or loop evidence, then
+  summarize their current result in the Gate B chat handoff. CI is the
+  published source of automated check status, so do not copy those details
+  into the PR description. Include a `Manual testing` section in the PR
+  description only when hands-on verification produced evidence CI cannot
+  expose; omit that section otherwise.
 - **GATE B, per working mode:**
   - *branch* — open a PR against the repo's integration branch (unless the
     user directed otherwise); the summary is the PR description. Link the PR

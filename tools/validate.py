@@ -41,12 +41,20 @@ STATE_TEMPLATE_PATH = Path("skills/swe-loop/templates/state.md")
 TEST_PLAN_TEMPLATE_PATH = Path("skills/swe-loop/templates/test-plan.md")
 EVIDENCE_TEMPLATE_PATH = Path("skills/swe-loop/templates/evidence.md")
 ADR_TEMPLATE_PATH = Path("skills/swe-loop/templates/adr.md")
+PR_DESCRIPTION_TEMPLATE_PATH = Path("skills/swe-loop/templates/pr-description.md")
 
-ADR_PATH_RESOLUTION_MARKERS = (
+ADR_PATH_RESOLUTION_MARKERS: tuple[str, ...] = (
     "1. **Explicit direction** — follow a repository instruction or user choice.",
     "2. **Existing convention** — inspect repository ADRs and preserve their",
     "3. **Descriptive fallback** — when no ADR convention exists, create",
     "`docs/architecture-decisions/<slug>.md`. Do not introduce a sequence number.",
+)
+
+PR_AUTOMATION_OWNERSHIP_MARKERS: tuple[str, ...] = (
+    "CI is the published source of automated check status",
+    "do not copy those details into the PR description",
+    "only when hands-on verification produced evidence CI cannot expose",
+    "omit that section otherwise",
 )
 
 Archetype = Literal["structural", "narrative"]
@@ -446,6 +454,23 @@ def _metadata_field_names(metadata: str) -> set[str]:
     }
 
 
+def _missing_contract_markers(
+    document: str,
+    required_markers: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return required wording that a Markdown document no longer contains.
+
+    Markdown wrapping does not change a sentence's meaning, so compare a
+    whitespace-normalized document against equally normalized contract markers.
+    """
+    normalized_document = " ".join(document.split())
+    return tuple(
+        marker
+        for marker in required_markers
+        if " ".join(marker.split()) not in normalized_document
+    )
+
+
 def check_swe_loop_contract(repo_root: Path) -> list[str]:
     """Validate stable structure for the SWE-loop documentation contracts."""
     skill = _read_contract_document(repo_root, SWE_LOOP_SKILL_PATH)
@@ -453,6 +478,7 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
     _read_contract_document(repo_root, TEST_PLAN_TEMPLATE_PATH)
     _read_contract_document(repo_root, EVIDENCE_TEMPLATE_PATH)
     adr_template = _read_contract_document(repo_root, ADR_TEMPLATE_PATH)
+    pr_description = _read_contract_document(repo_root, PR_DESCRIPTION_TEMPLATE_PATH)
 
     findings: list[str] = []
 
@@ -612,6 +638,36 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
             f"{SWE_LOOP_SKILL_PATH}: contract 'adr.path-resolution' requires "
             "explicit direction, existing-convention, and descriptive-fallback "
             f"guidance; missing {missing_adr_path_markers}"
+        )
+
+    manual_testing_heading = "## Manual testing"
+    if manual_testing_heading not in pr_description:
+        findings.append(
+            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.manual-testing' requires "
+            f"heading '{manual_testing_heading}'"
+        )
+    manual_testing_omission = "Delete this section entirely when no hands-on verification was"
+    if manual_testing_omission not in pr_description:
+        findings.append(
+            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.manual-testing-omission' "
+            "requires conditional omission guidance"
+        )
+    if "## What was tested" in pr_description:
+        findings.append(
+            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.no-automated-test-section' "
+            "forbids the CI-owned 'What was tested' section"
+        )
+
+    phase_seven = _markdown_section(skill, "### Phase 7 — Deliver & close", SWE_LOOP_SKILL_PATH)
+    missing_delivery_markers = _missing_contract_markers(
+        phase_seven,
+        PR_AUTOMATION_OWNERSHIP_MARKERS,
+    )
+    if missing_delivery_markers:
+        findings.append(
+            f"{SWE_LOOP_SKILL_PATH}: contract 'pr.automation-ownership' requires "
+            f"CI-owned automation and conditional manual-testing guidance; missing "
+            f"{missing_delivery_markers}"
         )
 
     adr_metadata = adr_template.partition("## Context")[0]

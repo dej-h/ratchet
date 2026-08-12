@@ -103,6 +103,7 @@ def write_swe_loop_contract_fixture(root: Path) -> None:
         Path("skills/swe-loop/templates/test-plan.md"),
         Path("skills/swe-loop/templates/evidence.md"),
         Path("skills/swe-loop/templates/adr.md"),
+        Path("skills/swe-loop/templates/pr-description.md"),
     )
     for relative_path in contract_paths:
         target = root / relative_path
@@ -660,7 +661,48 @@ class TestSweLoopContract:
         assert any("adr.path-resolution" in finding for finding in findings)
 
     @pytest.mark.parametrize(
-    "loop_field",
+        "marker",
+        [
+            "CI is the\n  published source of automated check status",
+            "do not copy those details\n  into the PR description",
+            "only when hands-on verification produced evidence CI cannot\n  expose",
+            "omit that section otherwise",
+        ],
+    )
+    def test_missing_automation_ownership_guidance_is_reported(
+        self,
+        repo: Path,
+        marker: str,
+    ) -> None:
+        skill = repo / "skills" / "swe-loop" / "SKILL.md"
+        replace_once(skill, marker, "removed automation ownership guidance")
+        findings = run_checks(repo)
+        assert any("pr.automation-ownership" in finding for finding in findings)
+
+    def test_missing_manual_testing_heading_is_reported(self, repo: Path) -> None:
+        template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
+        replace_once(template, "## Manual testing", "## Evidence")
+        findings = run_checks(repo)
+        assert any("pr.manual-testing" in finding for finding in findings)
+
+    def test_manual_testing_omission_guidance_is_reported(self, repo: Path) -> None:
+        template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
+        replace_once(
+            template,
+            "Delete this section entirely when no hands-on verification was",
+            "removed manual testing omission guidance",
+        )
+        findings = run_checks(repo)
+        assert any("pr.manual-testing-omission" in finding for finding in findings)
+
+    def test_restored_automated_test_section_is_reported(self, repo: Path) -> None:
+        template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
+        replace_once(template, "## Manual testing", "## What was tested")
+        findings = run_checks(repo)
+        assert any("pr.no-automated-test-section" in finding for finding in findings)
+
+    @pytest.mark.parametrize(
+        "loop_field",
         [
             "- **Loop:** external\n",
             "- **Loop**: external\n",
