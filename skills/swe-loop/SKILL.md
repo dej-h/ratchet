@@ -325,8 +325,8 @@ evidence; spec drift is zero, or the ADR was amended and the user informed
 ### Phase 7 — Deliver & close
 
 Do:
-- Write the summary via write-as-dejan: what changed, what was tested,
-  architectural changes if any, review guide per task (S/M classes).
+- Write the summary via write-as-dejan: what changed, manual testing if
+  performed, architectural changes if any, review guide per task (S/M classes).
   Reference the ADR; include the right diagrams per
   [mermaid-guide.md](mermaid-guide.md). Keep automated commands, pass counts,
   and detailed results in `state.md`, `test-plan.md`, or loop evidence, then

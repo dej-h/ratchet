@@ -1,6 +1,6 @@
 # <imperative title — what this change does>
 
-ADR: <link to docs/architecture-decisions/NNN-<slug>.md>
+ADR: <link to resolved ADR path>
 
 ## What changed
 

@@ -57,6 +57,25 @@ PR_AUTOMATION_OWNERSHIP_MARKERS: tuple[str, ...] = (
     "omit that section otherwise",
 )
 
+PR_DESCRIPTION_HEADINGS: tuple[str, ...] = (
+    "# <imperative title — what this change does>",
+    "## What changed",
+    "## Architecture",
+    "## Manual testing",
+    "## Review guide",
+    "## Notes",
+)
+
+AUTOMATED_PR_EVIDENCE_RE = re.compile(
+    r"(?im)(?:"
+    r"`?(?:uv run )?(?:pytest|ruff|mypy|pyright)\b|"
+    r"`?npm (?:test|run (?:build|lint|test))\b|"
+    r"\b(?:all tests?|tests?) passed\b|"
+    r"\b\d+\s+passed\b|"
+    r"\bfull[- ]suite(?: result)?\b"
+    r")"
+)
+
 Archetype = Literal["structural", "narrative"]
 RenderingMode = Literal["github-native", "icon"]
 
@@ -471,6 +490,51 @@ def _missing_contract_markers(
     )
 
 
+def _check_adr_template_contract(adr_template: str) -> list[str]:
+    """Reject template defaults that impose a numbered ADR convention."""
+    findings: list[str] = []
+    if "# ADR: <title>" not in adr_template:
+        findings.append(
+            f"{ADR_TEMPLATE_PATH}: contract 'adr.convention-neutral-title' requires "
+            "'# ADR: <title>'"
+        )
+    if re.search(r"\bNNN\b", adr_template):
+        findings.append(
+            f"{ADR_TEMPLATE_PATH}: contract 'adr.no-imposed-number' forbids "
+            "numbered placeholders"
+        )
+    return findings
+
+
+def _check_pr_description_contract(pr_description: str) -> list[str]:
+    """Validate the published PR template's evidence-ownership boundary."""
+    findings: list[str] = []
+    headings = tuple(heading for _, heading in _markdown_headings(pr_description))
+    if headings != PR_DESCRIPTION_HEADINGS:
+        findings.append(
+            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.sections' requires "
+            f"{PR_DESCRIPTION_HEADINGS}, found {headings}"
+        )
+    if "ADR: <link to resolved ADR path>" not in pr_description:
+        findings.append(
+            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.resolved-adr-reference' "
+            "requires a convention-neutral ADR placeholder"
+        )
+    manual_testing_omission = "Delete this section entirely when no hands-on verification was"
+    if manual_testing_omission not in pr_description:
+        findings.append(
+            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.manual-testing-omission' "
+            "requires conditional omission guidance"
+        )
+    automated_evidence = AUTOMATED_PR_EVIDENCE_RE.findall(pr_description)
+    if automated_evidence:
+        findings.append(
+            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.no-automated-test-evidence' "
+            f"forbids CI-owned commands or results, found {tuple(automated_evidence)}"
+        )
+    return findings
+
+
 def check_swe_loop_contract(repo_root: Path) -> list[str]:
     """Validate stable structure for the SWE-loop documentation contracts."""
     skill = _read_contract_document(repo_root, SWE_LOOP_SKILL_PATH)
@@ -630,8 +694,9 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
             f"requires ordered steps {required_steps}, found {phase_four_steps}"
         )
 
-    missing_adr_path_markers = tuple(
-        marker for marker in ADR_PATH_RESOLUTION_MARKERS if marker not in skill
+    missing_adr_path_markers = _missing_contract_markers(
+        skill,
+        ADR_PATH_RESOLUTION_MARKERS,
     )
     if missing_adr_path_markers:
         findings.append(
@@ -640,23 +705,8 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
             f"guidance; missing {missing_adr_path_markers}"
         )
 
-    manual_testing_heading = "## Manual testing"
-    if manual_testing_heading not in pr_description:
-        findings.append(
-            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.manual-testing' requires "
-            f"heading '{manual_testing_heading}'"
-        )
-    manual_testing_omission = "Delete this section entirely when no hands-on verification was"
-    if manual_testing_omission not in pr_description:
-        findings.append(
-            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.manual-testing-omission' "
-            "requires conditional omission guidance"
-        )
-    if "## What was tested" in pr_description:
-        findings.append(
-            f"{PR_DESCRIPTION_TEMPLATE_PATH}: contract 'pr.no-automated-test-section' "
-            "forbids the CI-owned 'What was tested' section"
-        )
+    findings.extend(_check_adr_template_contract(adr_template))
+    findings.extend(_check_pr_description_contract(pr_description))
 
     phase_seven = _markdown_section(skill, "### Phase 7 — Deliver & close", SWE_LOOP_SKILL_PATH)
     missing_delivery_markers = _missing_contract_markers(

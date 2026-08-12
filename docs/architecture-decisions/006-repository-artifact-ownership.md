@@ -1,4 +1,4 @@
-# ADR 005: Keep repository artifacts aligned with their owners
+# ADR 006: Keep repository artifacts aligned with their owners
 
 - **Status:** proposed
 - **Date:** 2026-08-12

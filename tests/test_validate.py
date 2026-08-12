@@ -683,7 +683,7 @@ class TestSweLoopContract:
         template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
         replace_once(template, "## Manual testing", "## Evidence")
         findings = run_checks(repo)
-        assert any("pr.manual-testing" in finding for finding in findings)
+        assert any("pr.sections" in finding for finding in findings)
 
     def test_manual_testing_omission_guidance_is_reported(self, repo: Path) -> None:
         template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
@@ -699,7 +699,35 @@ class TestSweLoopContract:
         template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
         replace_once(template, "## Manual testing", "## What was tested")
         findings = run_checks(repo)
-        assert any("pr.no-automated-test-section" in finding for finding in findings)
+        assert any("pr.sections" in finding for finding in findings)
+
+    def test_extra_automated_verification_section_is_reported(self, repo: Path) -> None:
+        template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
+        template.write_text(f"{template.read_text()}\n## Verification\n\n- CI status\n")
+        findings = run_checks(repo)
+        assert any("pr.sections" in finding for finding in findings)
+
+    def test_automated_command_and_pass_count_are_reported(self, repo: Path) -> None:
+        template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
+        template.write_text(f"{template.read_text()}\n- `uv run pytest -q`: 137 passed\n")
+        findings = run_checks(repo)
+        assert any("pr.no-automated-test-evidence" in finding for finding in findings)
+
+    def test_numbered_adr_template_title_is_reported(self, repo: Path) -> None:
+        template = repo / "skills" / "swe-loop" / "templates" / "adr.md"
+        replace_once(template, "# ADR: <title>", "# ADR NNN: <title>")
+        findings = run_checks(repo)
+        assert any("adr.no-imposed-number" in finding for finding in findings)
+
+    def test_numbered_pr_adr_reference_is_reported(self, repo: Path) -> None:
+        template = repo / "skills" / "swe-loop" / "templates" / "pr-description.md"
+        replace_once(
+            template,
+            "ADR: <link to resolved ADR path>",
+            "ADR: <link to docs/architecture-decisions/NNN-<slug>.md>",
+        )
+        findings = run_checks(repo)
+        assert any("pr.resolved-adr-reference" in finding for finding in findings)
 
     @pytest.mark.parametrize(
         "loop_field",
