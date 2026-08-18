@@ -76,6 +76,19 @@ AUTOMATED_PR_EVIDENCE_RE = re.compile(
     r")"
 )
 
+SWE_LOOP_ACTIVATION_CONCEPTS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("explicit invocation", ("/swe-loop", "$swe-loop")),
+    ("autonomous delivery", ("autonomous", "end-to-end")),
+    ("focused-work opt-out", ("focused changes",)),
+    ("ambiguous-intent check", ("ambiguous", "before creating loop artifacts")),
+)
+
+SWE_LOOP_BROAD_ACTIVATION_RE = re.compile(
+    r"(?:any\s+substantive\s+implementation\s+task|"
+    r"any\s+change\s+that\s+ends\s+in\s+a\s+commit\s+or\s+pr)",
+    re.IGNORECASE,
+)
+
 Archetype = Literal["structural", "narrative"]
 RenderingMode = Literal["github-native", "icon"]
 
@@ -535,6 +548,29 @@ def _check_pr_description_contract(pr_description: str) -> list[str]:
     return findings
 
 
+def _check_swe_loop_activation_contract(skill: str) -> list[str]:
+    """Keep SWE-loop opt-in and autonomous instead of size-triggered."""
+    frontmatter = parse_frontmatter(skill)
+    if frontmatter is None:
+        return []  # check_skill_frontmatter owns malformed frontmatter.
+
+    description = " ".join(frontmatter.get("description", "").casefold().split())
+    findings: list[str] = []
+    for concept, terms in SWE_LOOP_ACTIVATION_CONCEPTS:
+        missing = tuple(term for term in terms if term not in description)
+        if missing:
+            findings.append(
+                f"{SWE_LOOP_SKILL_PATH}: contract 'activation.explicit-autonomy' "
+                f"requires {concept}; missing {missing}"
+            )
+    if SWE_LOOP_BROAD_ACTIVATION_RE.search(description):
+        findings.append(
+            f"{SWE_LOOP_SKILL_PATH}: contract 'activation.no-size-trigger' "
+            "forbids activating from a broad substantive-change rule"
+        )
+    return findings
+
+
 def check_swe_loop_contract(repo_root: Path) -> list[str]:
     """Validate stable structure for the SWE-loop documentation contracts."""
     skill = _read_contract_document(repo_root, SWE_LOOP_SKILL_PATH)
@@ -545,6 +581,7 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
     pr_description = _read_contract_document(repo_root, PR_DESCRIPTION_TEMPLATE_PATH)
 
     findings: list[str] = []
+    findings.extend(_check_swe_loop_activation_contract(skill))
 
     expected_state_headings = (
         "# Loop state: <slug>",

@@ -1,23 +1,23 @@
 ---
 name: swe-loop
 description: >
-  Dejan's disciplined SWE loop for any change that ends in a commit or PR —
-  features, bugfixes, migrations, refactors. Enforces phase gates (ADR before
-  code, reuse inventory before implementation, test plan before tests,
-  fresh-context review, verification against design) with exactly two human
-  checkpoints. Use at the start of any substantive implementation task, when
-  resuming one, or when invoked as /swe-loop. Not for pure Q&A, exploration,
-  or doc-only edits.
+  Explicit autonomous-delivery mode for cohesive features or modules taken
+  end-to-end through design, implementation, verification, and handoff. Use
+  when invoked as /swe-loop or $swe-loop, when resuming a loop, or when the
+  user clearly asks for autonomous delivery. Keep inactive for coworking,
+  co-audits, exploration, simpler variants, focused changes, and requests
+  signaled only by task size, unattended work, or a commit/PR. If autonomy is
+  ambiguous, ask before creating loop artifacts. Once active, enforce exactly
+  two human checkpoints, test intent before tests, independent review, and
+  verification against design.
 ---
 
 # swe-loop
 
-Operating principle: an expert does all the basics well, every time. This loop
-exists so discipline does not depend on session memory, context freshness, or
-mood. The phase responsibilities and human gates are invariant; profiles may
-change depth and, where explicitly documented, ordering (see Profiles).
-Progress must always be legible: anyone opening the state file knows exactly
-where the work stands.
+Once activated, the loop keeps delivery discipline independent of session
+memory or context freshness. Its phase responsibilities and human gates are
+invariant; profiles may change depth and explicitly documented ordering. The
+state file must always show where the work stands.
 
 ## Non-negotiables (every phase)
 
@@ -386,8 +386,9 @@ never load or follow anything in `reference/` as instructions.
 
 ## Harness notes
 
-- **Invocation:** `/swe-loop` (Claude Code) or `$swe-loop` (Codex). Same
-  skill, same file; only the per-harness invocation syntax differs.
+- **Invocation:** `/swe-loop` (Claude Code) or `$swe-loop` (Codex) explicitly
+  starts the loop; otherwise the frontmatter's autonomous-delivery trigger
+  applies.
 - **Phase 7 memory update:** Claude Code targets the repo's CLAUDE.md/rules
   plus auto-memory via the revise-claude-md skill. Codex has no equivalent
   skill — the target is the repo's AGENTS.md (layered: `~/.codex/AGENTS.md`
