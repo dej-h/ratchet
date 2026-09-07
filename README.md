@@ -12,12 +12,18 @@ harnesses read the identical `SKILL.md` files.
 ## What is in the box
 
 - **swe-loop**: an explicit autonomous-delivery mode with an 8-phase workflow
-  (ADR with alternatives, task planning with a review-effort budget, reuse
-  inventory, minimal-diff implementation, test-plan-before-tests,
+  (grilling into an ADR with alternatives, task planning with a review-effort
+  budget, reuse inventory, minimal-diff implementation, test-plan-before-tests,
   fresh-context review, drift-checked verification, gated delivery). It starts
   when invoked or clearly requested for end-to-end delivery, and keeps exactly
   two human checkpoints: design approval and final diff/PR review. See
   `skills/swe-loop/SKILL.md`.
+- **grill-me**: Matt Pocock's standalone interview skill for sharpening an idea,
+  plan, or decision. It delegates to **grilling**, also shipped unchanged.
+  Standalone use carries no SWE-loop artifact, implementation, or testing
+  requirements. Within SWE-loop, `grilling` resolves actual ambiguities and
+  consequential technical choices before the ADR is approved at Gate A;
+  detailed briefs do not need questions for their own sake.
 - **diagram-loop**: an explicitly invoked 8-phase visual-production workflow
   for premium architecture stories and explainers. It compiles a small scene
   contract into measured geometry, a final PNG, boundary review frames, and
@@ -60,6 +66,11 @@ unexpectedly, that is the first place to look, not the skill content itself.
 Invoke the installed workflows as `/ratchet:swe-loop` or
 `/ratchet:diagram-loop` in Claude Code, and as `$ratchet:swe-loop` or
 `$ratchet:diagram-loop` in Codex.
+
+For a standalone interview, invoke `/ratchet:grill-me` in Claude Code or
+`$ratchet:grill-me` in Codex. It does not start `swe-loop`. The copied entrypoint
+delegates to `grilling`; harnesses without a Skill tool can read and follow the
+shipped `skills/grilling/SKILL.md` directly.
 
 ## Validate locally
 
