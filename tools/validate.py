@@ -3,9 +3,9 @@
 Checks the things that are cheap to check deterministically and stdlib-only:
 manifests parse, the four manifests agree on plugin name and version, every
 shipped SKILL.md carries the required frontmatter, the SWE-loop workflow keeps
-its persisted ordering and artifact-ownership contracts, and registered
-canonical Mermaid sources, guide projections, and committed icon renders honor
-their restricted contract.
+its persisted ordering and artifact-ownership contracts, diagram-loop ships
+its fixed package boundary, and registered canonical Mermaid sources, guide
+projections, and committed icon renders honor their restricted contract.
 
 This is deliberately NOT a substitute for the real per-harness validators.
 Run ``claude plugin validate .`` locally before tagging a release - it is
@@ -87,6 +87,57 @@ SWE_LOOP_BROAD_ACTIVATION_RE = re.compile(
     r"(?:any\s+substantive\s+implementation\s+task|"
     r"any\s+change\s+that\s+ends\s+in\s+a\s+commit\s+or\s+pr)",
     re.IGNORECASE,
+)
+
+DIAGRAM_LOOP_ROOT = Path("skills/diagram-loop")
+DIAGRAM_LOOP_REQUIRED_FILES: tuple[Path, ...] = tuple(
+    DIAGRAM_LOOP_ROOT / relative
+    for relative in (
+        "SKILL.md",
+        "references/asset-policy.md",
+        "references/diagram-archetypes.md",
+        "references/review-rubric.md",
+        "references/visual-language.md",
+        "templates/assets.yaml",
+        "templates/intent.md",
+        "templates/render-plan.md",
+        "templates/result.md",
+        "templates/review.md",
+        "templates/scene.yaml",
+        "templates/state.md",
+        "templates/storyboard.md",
+        "scripts/run-renderer.mjs",
+        "renderer/.node-version",
+        "renderer/package.json",
+        "renderer/package-lock.json",
+        "renderer/src/cli.ts",
+        "renderer/src/compile.ts",
+        "renderer/src/composition.tsx",
+        "renderer/src/render.ts",
+        "renderer/src/schema.ts",
+        "renderer/src/state.ts",
+        "renderer/src/verify.ts",
+    )
+)
+DIAGRAM_LOOP_REQUIRED_DEPENDENCIES: tuple[str, ...] = (
+    "@fontsource/inter",
+    "@iconify-json/logos",
+    "@iconify-json/lucide",
+    "@napi-rs/canvas",
+    "@remotion/bundler",
+    "@remotion/renderer",
+    "elkjs",
+    "react",
+    "remotion",
+    "tsx",
+    "yaml",
+    "zod",
+)
+DIAGRAM_LOOP_REQUIRED_SCRIPTS: tuple[str, ...] = (
+    "diagram",
+    "typecheck",
+    "test",
+    "test:media",
 )
 
 Archetype = Literal["structural", "narrative"]
@@ -776,6 +827,58 @@ def check_swe_loop_contract(repo_root: Path) -> list[str]:
     return findings
 
 
+def check_diagram_loop_package(repo_root: Path) -> list[str]:
+    """Verify the premium renderer is complete, isolated, and reproducibly locked."""
+    findings: list[str] = []
+    for relative_path in DIAGRAM_LOOP_REQUIRED_FILES:
+        full_path = repo_root / relative_path
+        if not full_path.is_file() or full_path.stat().st_size == 0:
+            findings.append(f"diagram-loop required file is missing or empty: {relative_path}")
+
+    package_path = DIAGRAM_LOOP_ROOT / "renderer/package.json"
+    lock_path = DIAGRAM_LOOP_ROOT / "renderer/package-lock.json"
+    node_path = DIAGRAM_LOOP_ROOT / "renderer/.node-version"
+    mermaid_node_path = Path("tools/diagrams/.node-version")
+    if findings:
+        return findings
+
+    package = load_json(package_path, repo_root)
+    if package.get("private") is not True:
+        findings.append(f"{package_path}: renderer package must remain private")
+    dependencies = package.get("dependencies")
+    if not isinstance(dependencies, dict):
+        findings.append(f"{package_path}: dependencies must be an object")
+    else:
+        for dependency in DIAGRAM_LOOP_REQUIRED_DEPENDENCIES:
+            if not isinstance(dependencies.get(dependency), str):
+                findings.append(f"{package_path}: missing runtime dependency '{dependency}'")
+    scripts = package.get("scripts")
+    if not isinstance(scripts, dict):
+        findings.append(f"{package_path}: scripts must be an object")
+    else:
+        for script in DIAGRAM_LOOP_REQUIRED_SCRIPTS:
+            if not isinstance(scripts.get(script), str):
+                findings.append(f"{package_path}: missing script '{script}'")
+
+    lock = load_json(lock_path, repo_root)
+    lock_packages = lock.get("packages")
+    root_lock = lock_packages.get("") if isinstance(lock_packages, dict) else None
+    if not isinstance(root_lock, dict):
+        findings.append(f"{lock_path}: root package lock entry is missing")
+    else:
+        for field in ("name", "version"):
+            if root_lock.get(field) != package.get(field):
+                findings.append(f"{lock_path}: root '{field}' does not match package.json")
+
+    premium_node = (repo_root / node_path).read_text().strip()
+    mermaid_node = (repo_root / mermaid_node_path).read_text().strip()
+    if premium_node != mermaid_node:
+        findings.append(
+            f"{node_path}: Node version must match {mermaid_node_path} ({mermaid_node})"
+        )
+    return findings
+
+
 def _require_mapping(value: object, context: str) -> dict[str, object]:
     """Narrow untrusted JSON to a string-keyed mapping at the parse boundary."""
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
@@ -1241,6 +1344,7 @@ def run_checks(repo_root: Path) -> list[str]:
         check_skill_frontmatter,
         check_adr_exists,
         check_swe_loop_contract,
+        check_diagram_loop_package,
         check_canonical_diagrams,
     ):
         try:
@@ -1261,8 +1365,8 @@ def main() -> int:
         return 1
 
     print(
-        "PASS: manifests, skills, SWE-loop contracts, ADRs, and canonical diagrams "
-        "are structurally valid."
+        "PASS: manifests, skills, SWE-loop contracts, ADRs, diagram-loop, and "
+        "canonical diagrams are structurally valid."
     )
     print("Reminder: run 'claude plugin validate .' locally for the authoritative")
     print("Claude Code check - this script does not replace it.")

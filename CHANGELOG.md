@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 (2026-09-03)
+
+- Added the explicitly invoked `diagram-loop` skill for phase-gated architecture
+  diagrams and explainers with deterministic geometry and reviewable run state.
+- Added a locked, isolated TypeScript renderer that emits a final PNG, boundary
+  review frames, contact sheets, and optional MP4/WebM exports.
+- Added mechanical validation for scene, asset, rendering, review, and provenance
+  contracts, plus local and CI media-smoke coverage.
+
 ## 0.3.0 (2026-07-24)
 
 - Added separate structural and narrative Mermaid conventions, five

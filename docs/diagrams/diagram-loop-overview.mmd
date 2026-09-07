@@ -1,0 +1,22 @@
+graph LR
+    User(["👤 User"])
+    RunState[("External run state")]
+    Outputs[("Reviewed media")]
+
+    subgraph plugin["Ratchet plugin"]
+        Swe["swe-loop skill"]
+        Mermaid["Mermaid guide"]
+        Diagram["diagram-loop skill"]
+        Compiler["Scene compiler"]
+        Renderer["Remotion renderer"]
+    end
+
+    User -.->|"software delivery"| Swe
+    Swe -->|"ADR and PR diagrams"| Mermaid
+    User -.->|"explicit premium request"| Diagram
+    Diagram -.->|"persist phases and gates"| RunState
+    Diagram -->|"validated scene"| Compiler
+    Compiler -->|"compiled geometry and timing"| Renderer
+    Renderer -.->|"PNG, WebM, and MP4"| Outputs
+
+    style plugin fill:none,stroke:#5577cc,stroke-width:2px,stroke-dasharray:7 4

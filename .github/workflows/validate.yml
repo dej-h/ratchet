@@ -16,10 +16,16 @@ jobs:
         with:
           node-version-file: tools/diagrams/.node-version
           cache: npm
-          cache-dependency-path: tools/diagrams/package-lock.json
+          cache-dependency-path: |
+            tools/diagrams/package-lock.json
+            skills/diagram-loop/renderer/package-lock.json
 
       - name: Install locked diagram renderer
         working-directory: tools/diagrams
+        run: npm ci
+
+      - name: Install locked premium diagram renderer
+        working-directory: skills/diagram-loop/renderer
         run: npm ci
 
       - name: Install uv
@@ -52,5 +58,23 @@ jobs:
         working-directory: tools/diagrams
         run: npm test
 
+      - name: Type-check premium diagram renderer
+        working-directory: skills/diagram-loop/renderer
+        run: npm run typecheck
+
+      - name: Run premium diagram renderer contract tests
+        working-directory: skills/diagram-loop/renderer
+        run: npm test
+
+      - name: Run premium diagram media smoke
+        working-directory: skills/diagram-loop/renderer
+        run: npm run test:media
+
       - name: Run validator test suite
         run: uv run pytest -q
+
+      - name: Smoke-test installed renderer from a read-only plugin tree
+        run: |
+          chmod -R a-w skills/diagram-loop
+          RATCHET_DIAGRAM_CACHE_ROOT="${RUNNER_TEMP}/diagram-loop-cache" node skills/diagram-loop/scripts/run-renderer.mjs init --repo-key ci --slug read-only-smoke
+          test -f "${HOME}/.claude/diagram-loops/ci/read-only-smoke/state.md"

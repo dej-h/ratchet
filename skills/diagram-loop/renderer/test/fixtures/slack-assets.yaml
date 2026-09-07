@@ -1,0 +1,13 @@
+version: 1
+assets:
+  - id: slack
+    type: icon
+    status: selected
+    source_url: https://www.npmjs.com/package/@iconify-json/logos/v/1.2.13
+    source_revision: "@iconify-json/logos@1.2.13"
+    license_name: CC0-1.0
+    license_url: https://github.com/iconify/icon-sets/blob/master/collections.md
+    trademark_url: https://slack.com/intl/en-gb/brand-guidelines
+    sha256: 4848bcf4c3a968738be05dcda3a30d29efc02047a6da44647965ae5a1d61937b
+    transformations: []
+    ref: logos:slack-icon
