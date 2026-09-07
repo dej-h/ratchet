@@ -1,7 +1,7 @@
 {
   "name": "ratchet",
-  "version": "0.3.0",
-  "description": "Phase-gated SWE workflow for coding agents: ADR-first design with alternatives, review-effort-budgeted tasks, reuse inventory, test-plan-before-tests, fresh-context review, and drift-checked delivery. Ships with the write-as-dejan writing-voice skill.",
+  "version": "0.4.0",
+  "description": "Phase-gated SWE delivery and explicitly invoked premium diagram production for coding agents. Ships with swe-loop, diagram-loop, and the write-as-dejan writing-voice skill.",
   "author": "Dejan Honderd",
   "license": "MIT",
   "skills": "./skills",

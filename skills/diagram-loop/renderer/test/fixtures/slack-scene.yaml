@@ -1,0 +1,29 @@
+version: 1
+kind: architecture
+title: One message, two recipients
+audience: mixed
+direction: lr
+nodes:
+  - {id: sender, label: Client A, subtitle: sends message, role: client, importance: primary, asset: slack}
+  - {id: webapp, label: Webapp API, subtitle: HTTP ingress, role: service, importance: primary}
+  - {id: admin, label: Admin Server, subtitle: finds channel, role: service, importance: primary}
+  - {id: channel, label: Channel Server, subtitle: owns delivery, role: service, importance: primary}
+  - {id: gateway-a, label: Gateway A, subtitle: subscribed, role: service, importance: primary}
+  - {id: gateway-b, label: Gateway B, subtitle: subscribed, role: service, importance: primary}
+  - {id: client-b, label: Client B, subtitle: connected, role: client, importance: primary}
+  - {id: client-c, label: Client C, subtitle: connected, role: client, importance: primary}
+edges:
+  - {id: submit, from: sender, to: webapp, label: POST message, role: primary}
+  - {id: route, from: webapp, to: admin, label: route message, role: primary}
+  - {id: locate, from: admin, to: channel, label: locate channel, role: primary}
+  - {id: fanout-a, from: channel, to: gateway-a, label: publish, role: primary}
+  - {id: fanout-b, from: channel, to: gateway-b, label: publish, role: primary}
+  - {id: deliver-b, from: gateway-a, to: client-b, label: deliver, role: primary}
+  - {id: deliver-c, from: gateway-b, to: client-c, label: deliver, role: primary}
+groups: []
+narrative:
+  - {action: reveal, targets: [sender, webapp, admin, channel], caption: A message enters the channel path.}
+  - {action: trace, edge: submit, caption: The client submits it.}
+  - {action: parallel, targets: [gateway-a, gateway-b], caption: Channel delivery fans out.}
+  - {action: parallel, targets: [client-b, client-c], caption: Connected clients receive it.}
+  - {action: finalOverview}

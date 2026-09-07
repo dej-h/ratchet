@@ -13,10 +13,15 @@ from pathlib import Path
 
 import pytest
 
-from tools.validate import parse_frontmatter, run_checks
+from tools.validate import (
+    DIAGRAM_LOOP_REQUIRED_DEPENDENCIES,
+    DIAGRAM_LOOP_REQUIRED_FILES,
+    parse_frontmatter,
+    run_checks,
+)
 
 PLUGIN_NAME = "ratchet"
-VERSION = "0.1.0"
+VERSION = "0.4.0"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 PALETTE = """    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
@@ -78,6 +83,49 @@ def build_fixture_repo(root: Path) -> None:
     )
     (root / "docs" / "architecture-decisions" / "001-demo.md").write_text("# ADR 001\n")
     write_swe_loop_contract_fixture(root)
+    for relative_path in DIAGRAM_LOOP_REQUIRED_FILES:
+        full_path = root / relative_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text("fixture\n")
+    diagram_package = {
+        "name": "ratchet-diagram-loop-renderer",
+        "version": "0.1.0",
+        "private": True,
+        "scripts": {
+            "diagram": "node src/cli.ts",
+            "typecheck": "tsc --noEmit",
+            "test": "node --test",
+            "test:media": "node --test test/media/media-smoke.test.ts",
+        },
+        "dependencies": {
+            dependency: "1.0.0" for dependency in DIAGRAM_LOOP_REQUIRED_DEPENDENCIES
+        },
+    }
+    (root / "skills" / "diagram-loop" / "SKILL.md").write_text(
+        "---\nname: diagram-loop\ndescription: a premium diagram skill\n---\n\n# Diagram loop\n"
+    )
+    (root / "skills" / "diagram-loop" / "renderer" / "package.json").write_text(
+        json.dumps(diagram_package)
+    )
+    (root / "skills" / "diagram-loop" / "renderer" / "package-lock.json").write_text(
+        json.dumps(
+            {
+                "name": diagram_package["name"],
+                "version": diagram_package["version"],
+                "packages": {
+                    "": {
+                        "name": diagram_package["name"],
+                        "version": diagram_package["version"],
+                    }
+                },
+            }
+        )
+    )
+    (root / "tools" / "diagrams").mkdir(parents=True)
+    (root / "tools" / "diagrams" / ".node-version").write_text("24.14.0\n")
+    (root / "skills" / "diagram-loop" / "renderer" / ".node-version").write_text(
+        "24.14.0\n"
+    )
     write_canonical_fixture(root)
 
 
@@ -227,6 +275,7 @@ class TestSkillFrontmatter:
     def test_empty_skills_dir_is_reported(self, repo: Path) -> None:
         (repo / "skills" / "demo" / "SKILL.md").unlink()
         (repo / "skills" / "swe-loop" / "SKILL.md").unlink()
+        (repo / "skills" / "diagram-loop" / "SKILL.md").unlink()
         findings = run_checks(repo)
         assert any("no skills/*/SKILL.md" in finding for finding in findings)
 
@@ -779,6 +828,42 @@ class TestSweLoopContract:
             "required SWE-loop contract document is missing" in finding
             for finding in findings
         )
+class TestDiagramLoopPackage:
+    def test_missing_required_file_is_reported(self, repo: Path) -> None:
+        missing = repo / "skills" / "diagram-loop" / "templates" / "state.md"
+        missing.unlink()
+        findings = run_checks(repo)
+        assert any("required file is missing or empty" in finding for finding in findings)
+
+    def test_renderer_must_remain_private(self, repo: Path) -> None:
+        package = repo / "skills" / "diagram-loop" / "renderer" / "package.json"
+        rewrite_json(package, lambda data: data.update(private=False))
+        findings = run_checks(repo)
+        assert any("renderer package must remain private" in finding for finding in findings)
+
+    def test_required_dependency_is_reported(self, repo: Path) -> None:
+        package = repo / "skills" / "diagram-loop" / "renderer" / "package.json"
+        rewrite_json(package, lambda data: data["dependencies"].pop("remotion"))
+        findings = run_checks(repo)
+        assert any("missing runtime dependency 'remotion'" in finding for finding in findings)
+
+    def test_required_script_is_reported(self, repo: Path) -> None:
+        package = repo / "skills" / "diagram-loop" / "renderer" / "package.json"
+        rewrite_json(package, lambda data: data["scripts"].pop("test:media"))
+        findings = run_checks(repo)
+        assert any("missing script 'test:media'" in finding for finding in findings)
+
+    def test_root_lock_mismatch_is_reported(self, repo: Path) -> None:
+        lock = repo / "skills" / "diagram-loop" / "renderer" / "package-lock.json"
+        rewrite_json(lock, lambda data: data["packages"][""].update(version="9.9.9"))
+        findings = run_checks(repo)
+        assert any("root 'version' does not match" in finding for finding in findings)
+
+    def test_node_version_drift_is_reported(self, repo: Path) -> None:
+        node_version = repo / "skills" / "diagram-loop" / "renderer" / ".node-version"
+        node_version.write_text("23.0.0\n")
+        findings = run_checks(repo)
+        assert any("Node version must match" in finding for finding in findings)
 
 
 class TestCanonicalRegistry:

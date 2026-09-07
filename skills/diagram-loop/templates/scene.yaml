@@ -1,0 +1,35 @@
+version: 1
+kind: flow
+title: <short title>
+audience: mixed
+direction: lr
+
+nodes:
+  - id: source
+    label: Source
+    subtitle: optional detail
+    role: client
+    importance: primary
+  - id: destination
+    label: Destination
+    subtitle: optional detail
+    role: service
+    importance: primary
+
+edges:
+  - id: submit
+    from: source
+    to: destination
+    label: send request
+    role: primary
+
+groups: []
+
+narrative:
+  - action: reveal
+    targets: [source, destination]
+    caption: Show both responsibilities.
+  - action: trace
+    edge: submit
+    caption: Trace the request to its destination.
+  - action: finalOverview

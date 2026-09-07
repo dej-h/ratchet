@@ -5,14 +5,14 @@
     "url": "https://github.com/dej-h"
   },
   "metadata": {
-    "description": "Phase-gated SWE workflow for coding agents, self-hosted as a single-plugin marketplace."
+    "description": "Phase-gated SWE delivery and premium diagram production, self-hosted as a single-plugin marketplace."
   },
   "plugins": [
     {
       "name": "ratchet",
-      "description": "Phase-gated SWE workflow: ADR-first design, review-effort-budgeted tasks, reuse inventory, test-plan-before-tests, fresh-context review, drift-checked delivery. Includes the write-as-dejan writing-voice skill.",
+      "description": "Phase-gated SWE delivery with an explicitly invoked premium diagram workflow. Includes swe-loop, diagram-loop, and the write-as-dejan writing-voice skill.",
       "source": "./",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "category": "productivity"
     }
   ]

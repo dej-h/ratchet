@@ -1,0 +1,33 @@
+version: 1
+kind: flow
+title: Candidate ranking funnel
+audience: engineer
+direction: lr
+nodes:
+  - {id: network, label: Network Source, role: external-system, importance: primary}
+  - {id: activity, label: Activity Source, role: external-system, importance: primary}
+  - {id: topic, label: Topic Source, role: external-system, importance: primary}
+  - {id: exploration, label: Explore Source, role: external-system, importance: primary}
+  - {id: hydrate, label: Feature Hydrator, subtitle: enrich candidates, role: process, importance: primary}
+  - {id: rank, label: ML Ranker, subtitle: score relevance, role: process, importance: primary}
+  - {id: filter, label: Policy Filter, subtitle: enforce rules, role: process, importance: primary}
+  - {id: timeline, label: Home Timeline, subtitle: final output, role: client, importance: primary}
+edges:
+  - {id: network-in, from: network, to: hydrate, label: candidates, role: primary}
+  - {id: activity-in, from: activity, to: hydrate, label: candidates, role: primary}
+  - {id: topic-in, from: topic, to: hydrate, label: candidates, role: primary}
+  - {id: exploration-in, from: exploration, to: hydrate, label: candidates, role: primary}
+  - {id: hydrated, from: hydrate, to: rank, label: hydrated set, role: primary}
+  - {id: ranked, from: rank, to: filter, label: ranked set, role: primary}
+  - {id: approved, from: filter, to: timeline, label: approved posts, role: primary}
+groups: []
+stages:
+  - {id: retrieve, label: Retrieve, nodes: [network, activity, topic, exploration]}
+  - {id: hydrate-stage, label: Hydrate, nodes: [hydrate]}
+  - {id: rank-stage, label: Rank, nodes: [rank]}
+  - {id: filter-stage, label: Filter, nodes: [filter]}
+  - {id: output, label: Output, nodes: [timeline]}
+narrative:
+  - {action: parallel, targets: [network, activity, topic, exploration], caption: Four sources retrieve candidates.}
+  - {action: reveal, targets: [hydrate, rank, filter, timeline], caption: Enrichment narrows toward the timeline.}
+  - {action: finalOverview}

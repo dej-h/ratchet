@@ -167,6 +167,12 @@ Do:
   the result and its durable evidence reference in `state.md`. A source-only
   diagram is not Gate A evidence.
 
+Ordinary ADR, architecture-document, and PR diagrams stay on this Mermaid
+path. Route to the sibling `diagram-loop` only when the user explicitly asks
+for a premium, animated, publication-quality, website, hero, or explainer
+visual in one of its five supported archetypes; `swe-loop` never invokes it
+automatically.
+
 Skills: write-as-dejan (prose), graphify (codebase understanding),
 deep-research / microsoft-docs (when the decision needs external grounding).
 

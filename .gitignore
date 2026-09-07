@@ -5,4 +5,5 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 tools/diagrams/node_modules/
+skills/diagram-loop/renderer/node_modules/
 .DS_Store

@@ -16,6 +16,11 @@ harnesses read the identical `SKILL.md` files.
   test-plan-before-tests, fresh-context review, drift-checked verification,
   gated delivery). Exactly two human checkpoints: design approval and final
   diff/PR review. See `skills/swe-loop/SKILL.md`.
+- **diagram-loop**: an explicitly invoked 8-phase visual-production workflow
+  for premium architecture stories and explainers. It compiles a small scene
+  contract into measured geometry, a final PNG, boundary review frames, and
+  optional MP4/WebM exports. It has exactly two human gates and keeps run state
+  outside the target repository. See `skills/diagram-loop/SKILL.md`.
 - **write-as-dejan**: a writing-voice skill for prose artifacts (ADRs, PR
   descriptions, summaries). See `skills/write-as-dejan/SKILL.md`.
 
@@ -42,13 +47,17 @@ or the in-session slash-command form:
 
 ```
 codex plugin marketplace add dej-h/ratchet
-codex plugin install ratchet
+codex plugin add ratchet@ratchet
 ```
 
 The Codex manifests (`.codex-plugin/`, `.agents/plugins/`) are grounded in
 the published Codex plugin docs but have not been verified against a real
 Codex install. If `codex plugin marketplace add` fails or behaves
 unexpectedly, that is the first place to look, not the skill content itself.
+
+Invoke the installed workflows as `/ratchet:swe-loop` or
+`/ratchet:diagram-loop` in Claude Code, and as `$ratchet:swe-loop` or
+`$ratchet:diagram-loop` in Codex.
 
 ## Validate locally
 
@@ -60,12 +69,20 @@ cd tools/diagrams
 npm ci                            # exact Node and package versions are locked in this directory
 npm test                          # renderer units and five-example corpus contract
 npm run diagrams:check            # one full render; committed icon SVGs match both passes
+cd ../../skills/diagram-loop/renderer
+npm ci                            # isolated premium-renderer dependency tree
+npm run typecheck                 # strict TypeScript boundary
+npm test                          # schemas, state, geometry, layout, timing, and digests
+npm run test:media                # reduced-cost real PNG, MP4, and WebM render smoke
+cd ..
+node scripts/run-renderer.mjs --help  # installed-plugin, external-cache entrypoint
 ```
 
-CI (`.github/workflows/validate.yml`) runs the structural validator, both test
-suites, and the canonical render check on every push and PR.
+CI (`.github/workflows/validate.yml`) runs the structural validator, Python
+tests, both Mermaid checks, and the isolated diagram-loop checks on every push
+and PR.
 
 ## Status
 
-Private, 0.3.0. This repo is the swe-loop workflow itself, dogfooded to
+Private, 0.4.0. This repo is the workflow implementation itself, dogfooded to
 build itself: its own first feature went through the loop it implements.
