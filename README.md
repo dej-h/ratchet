@@ -11,11 +11,13 @@ harnesses read the identical `SKILL.md` files.
 
 ## What is in the box
 
-- **swe-loop**: an 8-phase workflow (ADR with alternatives, task planning
-  with a review-effort budget, reuse inventory, minimal-diff implementation,
-  test-plan-before-tests, fresh-context review, drift-checked verification,
-  gated delivery). Exactly two human checkpoints: design approval and final
-  diff/PR review. See `skills/swe-loop/SKILL.md`.
+- **swe-loop**: an explicit autonomous-delivery mode with an 8-phase workflow
+  (ADR with alternatives, task planning with a review-effort budget, reuse
+  inventory, minimal-diff implementation, test-plan-before-tests,
+  fresh-context review, drift-checked verification, gated delivery). It starts
+  when invoked or clearly requested for end-to-end delivery, and keeps exactly
+  two human checkpoints: design approval and final diff/PR review. See
+  `skills/swe-loop/SKILL.md`.
 - **diagram-loop**: an explicitly invoked 8-phase visual-production workflow
   for premium architecture stories and explainers. It compiles a small scene
   contract into measured geometry, a final PNG, boundary review frames, and

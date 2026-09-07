@@ -289,6 +289,45 @@ class TestAdrPresence:
 
 class TestSweLoopContract:
     @pytest.mark.parametrize(
+        "term",
+        [
+            "/swe-loop",
+            "$swe-loop",
+            "autonomous",
+            "end-to-end",
+            "focused changes",
+            "ambiguous",
+            "before creating loop artifacts",
+        ],
+    )
+    def test_missing_activation_concept_is_reported(self, repo: Path, term: str) -> None:
+        skill = repo / "skills" / "swe-loop" / "SKILL.md"
+        text = skill.read_text()
+        frontmatter, separator, body = text[3:].partition("\n---\n")
+        assert separator and term in frontmatter
+        skill.write_text(f"---{frontmatter.replace(term, 'removed')}{separator}{body}")
+        findings = run_checks(repo)
+        assert any("activation.explicit-autonomy" in finding for finding in findings)
+
+    @pytest.mark.parametrize(
+        "broad_trigger",
+        [
+            "Use for any substantive implementation task.",
+            "Use for any change that ends in a commit or PR.",
+        ],
+    )
+    def test_broad_activation_trigger_is_reported(
+        self,
+        repo: Path,
+        broad_trigger: str,
+    ) -> None:
+        skill = repo / "skills" / "swe-loop" / "SKILL.md"
+        text = skill.read_text()
+        skill.write_text(text.replace("description: >", f"description: >\n  {broad_trigger}", 1))
+        findings = run_checks(repo)
+        assert any("activation.no-size-trigger" in finding for finding in findings)
+
+    @pytest.mark.parametrize(
         ("marker", "contract_id"),
         [
             ("- **Profile:**", "state.cursor.profile"),
