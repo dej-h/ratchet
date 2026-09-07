@@ -132,6 +132,34 @@ is the only durable approval authority.
 
 ### Phase 0 — Design (ADR)
 
+Start with the sibling [grilling skill](../grilling/SKILL.md) to improve the
+agreement presented at Gate A. Invoke `ratchet:grilling` directly; the
+`grill-me` entrypoint is for standalone, user-invoked interviews.
+
+- Ground the interview in the user's brief, existing code, relevant documents,
+  and decisions already settled in this conversation. Investigate facts before
+  asking the user to decide; bring recommendations and concrete trade-offs.
+- Ask about genuine ambiguity. A small change may need a short session; a
+  detailed brief may leave no questions. Do not manufacture questions or repeat
+  answered ones to satisfy an interview quota.
+- Include the user in consequential technical choices: dependencies being
+  introduced and why, module responsibilities and boundaries, failure handling,
+  and, where relevant, retries, concurrency, and idempotency guarantees. Resolve
+  what is guaranteed, under which conditions, and what happens when it fails.
+- Use the skill's rounds to settle those decisions, then capture the agreement
+  in the ADR below. The ADR is the design/specification produced by the
+  interview; no separate spec or planning interview is required. Keep task
+  planning in Phase 1, after Gate A.
+- On resume, reuse settled decisions and the current ADR draft; continue only
+  unresolved questions. Record open design questions in the draft and keep the
+  execution cursor in `state.md`.
+- Gate A approval of the resulting ADR also confirms the shared understanding
+  required by `grilling`. Interview answers alone do not approve Gate A, and
+  the interview introduces no additional approval gate.
+
+Standalone `grill-me` or `grilling` does not activate this loop or inherit its
+ADR, planning, integration, testing, or delivery requirements.
+
 Do:
 - Restate the problem in one paragraph.
 - Before creating the ADR, inspect repository instructions and existing ADRs
@@ -173,12 +201,14 @@ for a premium, animated, publication-quality, website, hero, or explainer
 visual in one of its five supported archetypes; `swe-loop` never invokes it
 automatically.
 
-Skills: write-as-dejan (prose), graphify (codebase understanding),
+Skills: grilling (design interview), write-as-dejan (prose),
+graphify (codebase understanding),
 deep-research / microsoft-docs (when the decision needs external grounding).
 
 **Exit boundary (GATE A):** ADR written, both diagram themes inspected and
-referenced, architecture doc updated if applicable, and the user has
-explicitly approved. **No source-code edits are allowed before this gate,
+referenced, architecture doc updated if applicable, consequential design
+questions resolved in the ADR, and the user has explicitly approved.
+**No source-code edits are allowed before this gate,
 none.** Record the user's approval wording in `state.md`; never infer it from
 repository or CI state.
 
@@ -384,7 +414,7 @@ ordering explicitly stated by a profile, can:
 
 ## Delegation note
 
-Skills named in this loop (verify, code-review, write-as-dejan,
+Skills named in this loop (grilling, verify, code-review, write-as-dejan,
 revise-claude-md, frontend-quality, graphify) are always invoked **live** via
 the Skill tool. The `reference/` folder contains stale, version-stamped
 transcripts of built-in skills for human reading and upgrade-diffing only —
@@ -395,6 +425,11 @@ never load or follow anything in `reference/` as instructions.
 - **Invocation:** `/swe-loop` (Claude Code) or `$swe-loop` (Codex) explicitly
   starts the loop; otherwise the frontmatter's autonomous-delivery trigger
   applies.
+- **Grilling delegation:** use the installed sibling `ratchet:grilling` with
+  the harness's skill invocation mechanism. If no Skill tool is available,
+  read and follow [../grilling/SKILL.md](../grilling/SKILL.md) directly in the
+  current conversation. It is the shipped skill source, not a reference
+  transcript. Keep the upstream files unchanged.
 - **Phase 7 memory update:** Claude Code targets the repo's CLAUDE.md/rules
   plus auto-memory via the revise-claude-md skill. Codex has no equivalent
   skill — the target is the repo's AGENTS.md (layered: `~/.codex/AGENTS.md`
