@@ -1,5 +1,5 @@
 {
-  "description": "Injects active .ratchet/work-packages.yaml and human-dependencies.md state at session start and after compaction.",
+  "description": "Injects active .ratchet/work-packages.yaml state at session start/compaction and enforces .ratchet/work-packages.yaml updates on gh pr create.",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,18 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.mjs\"",
             "timeout": 10
           }
         ]

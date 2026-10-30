@@ -54,10 +54,14 @@ Bootstrap a repository by copying
    Enabling the template, plugin version, or default flag happens in the last
    work package after all upstream code and `human_gate` runbook packages are
    `done`.
-5. **Same-commit ledger updates.** In both ad-hoc coworking sessions and
-   `swe-loop` runs, claiming, completing, or blocking a work package updates
-   `.ratchet/work-packages.yaml` (and `.ratchet/human-dependencies.md` when
-   blockers change) in the same commit or PR.
+5. **PR diff sets `status: done` (enforced on `gh pr create`).** Inside the PR
+   branch that delivers a work package, set that work package's `status: done`
+   in `.ratchet/work-packages.yaml` as part of the PR diff. While the PR is
+   open, `main` still shows `todo`, and the instant the PR merges on GitHub,
+   `main` receives `status: done` atomically with zero follow-up commits.
+   `hooks/pre-tool-use.mjs` blocks `gh pr create` (never `git push`) when
+   `.ratchet/work-packages.yaml` has not been updated on the branch or has
+   uncommitted changes.
 6. **One flow-mapping line per work package.** Every work package in
    `.ratchet/work-packages.yaml` MUST be a **single flow-mapping line**
    (`- { id: ..., lane: ..., title: "...", ref: "...", depends_on: [...], blocked_by: [...], human_gate: false, status: todo, owner: null }`).
@@ -99,9 +103,14 @@ Bootstrap a repository by copying
      Only treat a package as unstartable (`status: blocked`) when no safe
      `Unblock-with` default exists (for example, a pure manual runbook step
      waiting on an external admin).
-3. **Finishing a slice:**
-   - Set `status: in_review` when opening a PR, or `status: done` in the commit
-     that merges to `main`.
+3. **Finishing a slice (PR rule):**
+   - Set the delivered work package's `status: done` in
+     `.ratchet/work-packages.yaml` inside the PR branch before running
+     `gh pr create`, so merging the PR on GitHub updates `main` to `done`
+     atomically.
+   - `hooks/pre-tool-use.mjs` intercepts `gh pr create` (not `git push`) and
+     denies PR creation if `.ratchet/work-packages.yaml` was not updated on the
+     branch or has uncommitted changes.
    - When a human dependency is fulfilled, mark its row `Done (<YYYY-MM-DD>)`
      in `.ratchet/human-dependencies.md` with the concrete evidence (resource
      ID, PR number, or runbook outcome).

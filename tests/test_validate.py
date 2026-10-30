@@ -995,6 +995,84 @@ class TestWorkPackagesContract:
             in res.stdout
         )
 
+    def test_pre_tool_use_allows_git_push_and_blocks_gh_pr_create_without_wp_update(
+        self, tmp_path: Path
+    ) -> None:
+        subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=tmp_path,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=tmp_path,
+            check=True,
+        )
+        ratchet_dir = tmp_path / ".ratchet"
+        ratchet_dir.mkdir()
+        wp_file = ratchet_dir / "work-packages.yaml"
+        wp_file.write_text(
+            "work_packages:\n"
+            "  - { id: WP-1.1, lane: core, title: Slice 1, depends_on: [], blocked_by: [], human_gate: false, status: todo, owner: null }\n"
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "checkout", "-b", "feat/slice-1"],
+            cwd=tmp_path,
+            check=True,
+        )
+        (tmp_path / "app.py").write_text("x = 1\n")
+        subprocess.run(["git", "add", "app.py"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-m", "code only"], cwd=tmp_path, check=True)
+
+        script = PROJECT_ROOT / "hooks" / "pre-tool-use.mjs"
+
+        # 1. git push is never blocked
+        push_res = subprocess.run(
+            ["node", str(script)],
+            input=json.dumps(
+                {"cwd": str(tmp_path), "tool_input": {"command": "git push -u origin feat/slice-1"}}
+            ),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert push_res.stdout == ""
+
+        # 2. gh pr create is blocked when .ratchet/work-packages.yaml was not updated on branch
+        pr_blocked = subprocess.run(
+            ["node", str(script)],
+            input=json.dumps(
+                {"cwd": str(tmp_path), "tool_input": {"command": "gh pr create --title test --body test"}}
+            ),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        payload = json.loads(pr_blocked.stdout)
+        assert payload["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert "status: done" in payload["hookSpecificOutput"]["permissionDecisionReason"]
+
+        # 3. Once .ratchet/work-packages.yaml is updated and committed on branch, gh pr create is allowed
+        wp_file.write_text(
+            "work_packages:\n"
+            "  - { id: WP-1.1, lane: core, title: Slice 1, depends_on: [], blocked_by: [], human_gate: false, status: done, owner: dejan }\n"
+        )
+        subprocess.run(["git", "add", ".ratchet/work-packages.yaml"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-m", "mark WP-1.1 done"], cwd=tmp_path, check=True)
+        pr_allowed = subprocess.run(
+            ["node", str(script)],
+            input=json.dumps(
+                {"cwd": str(tmp_path), "tool_input": {"command": "gh pr create --title test --body test"}}
+            ),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert pr_allowed.stdout == ""
+
 
 
 class TestCanonicalRegistry:

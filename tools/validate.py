@@ -142,12 +142,14 @@ DIAGRAM_LOOP_REQUIRED_SCRIPTS: tuple[str, ...] = (
 
 HOOKS_MANIFEST_PATH = Path("hooks/hooks.json")
 SESSION_START_HOOK_PATH = Path("hooks/session-start.mjs")
+PRE_TOOL_USE_HOOK_PATH = Path("hooks/pre-tool-use.mjs")
 WORK_PACKAGES_SKILL_PATH = Path("skills/work-packages/SKILL.md")
 WORK_PACKAGES_TEMPLATE_PATH = Path("skills/work-packages/templates/work-packages.yaml")
 HUMAN_DEPS_TEMPLATE_PATH = Path("skills/work-packages/templates/human-dependencies.md")
 WORK_PACKAGES_REQUIRED_FILES: tuple[Path, ...] = (
     HOOKS_MANIFEST_PATH,
     SESSION_START_HOOK_PATH,
+    PRE_TOOL_USE_HOOK_PATH,
     WORK_PACKAGES_SKILL_PATH,
     WORK_PACKAGES_TEMPLATE_PATH,
     HUMAN_DEPS_TEMPLATE_PATH,
@@ -924,6 +926,22 @@ def check_work_packages_contract(repo_root: Path) -> list[str]:
         if "hooks/session-start.mjs" not in str(command):
             findings.append(
                 f"{HOOKS_MANIFEST_PATH}: SessionStart command must invoke hooks/session-start.mjs"
+            )
+
+    pre_tool_use = hooks_obj.get("PreToolUse") if isinstance(hooks_obj, dict) else None
+    if not isinstance(pre_tool_use, list) or not pre_tool_use:
+        findings.append(f"{HOOKS_MANIFEST_PATH}: missing hooks.PreToolUse array")
+    else:
+        entry = pre_tool_use[0] if isinstance(pre_tool_use[0], dict) else {}
+        inner_hooks = entry.get("hooks")
+        command = (
+            inner_hooks[0].get("command", "")
+            if isinstance(inner_hooks, list) and inner_hooks and isinstance(inner_hooks[0], dict)
+            else ""
+        )
+        if "hooks/pre-tool-use.mjs" not in str(command):
+            findings.append(
+                f"{HOOKS_MANIFEST_PATH}: PreToolUse command must invoke hooks/pre-tool-use.mjs"
             )
 
     wp_template = (repo_root / WORK_PACKAGES_TEMPLATE_PATH).read_text(encoding="utf-8")
