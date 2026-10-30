@@ -339,12 +339,9 @@ Do:
   new behavior).
 - Use the verify skill to exercise the affected flow end-to-end, not just
   unit tests.
-- **Pre-review consolidation pass:** once the planned tests pass, run the
-  sibling [consolidate skill](../consolidate/SKILL.md) (ideally diagnosed by a
-  fresh-context subagent given only `git diff` and touched files, without the
-  chat history) to remove prompt echoing, transition narration (`"Previously X,
-  now Y"`), redundant comments, prompt-shaped test names, and transitional
-  wrappers, then re-run the test suite so the tree entering Phase 5 is clean.
+- **Pre-review consolidation pass:** once the planned tests pass, run
+  [../consolidate/SKILL.md](../consolidate/SKILL.md) and re-run the test suite
+  before entering Phase 5.
 - For genuinely high-risk work, a fresh-context review of the test plan is an
   available self-check before step 2. It is not mandatory for every task and
   never becomes a third human gate.
