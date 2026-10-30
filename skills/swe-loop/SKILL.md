@@ -128,6 +128,14 @@ default. Continue from the first incomplete boundary; never redo completed
 phases or re-ask for a gate already granted. Exact gate wording in `state.md`
 is the only durable approval authority.
 
+**Repository `.ratchet/` work packages:** when `.ratchet/work-packages.yaml`
+exists in the repository, it tracks multi-PR lanes and external human blockers
+(`HD-xx` in `.ratchet/human-dependencies.md`) across sessions. If invoked for a
+specific work package (`/swe-loop <WP-ID>`), scope the loop to that package,
+build the documented `Unblock-with` safe default for any open `HD-xx` blocker,
+and update `.ratchet/work-packages.yaml` at Gate B. See
+[../work-packages/SKILL.md](../work-packages/SKILL.md).
+
 ## Phases
 
 ### Phase 0 — Design (ADR)

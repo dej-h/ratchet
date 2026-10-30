@@ -29,6 +29,13 @@ harnesses read the identical `SKILL.md` files.
   contract into measured geometry, a final PNG, boundary review frames, and
   optional MP4/WebM exports. It has exactly two human gates and keeps run state
   outside the target repository. See `skills/diagram-loop/SKILL.md`.
+- **work-packages**: an always-on repository work-package DAG
+  (`.ratchet/work-packages.yaml`) and external human-dependency ledger
+  (`.ratchet/human-dependencies.md` with `Unblock-with` dark-launch defaults),
+  backed by a `SessionStart` hook (`hooks/session-start.mjs`) that briefs
+  active, ready-next, and blocked slices at session start and after compaction
+  while staying silent in repos without `.ratchet/`. See
+  `skills/work-packages/SKILL.md`.
 - **write-as-dejan**: a writing-voice skill for prose artifacts (ADRs, PR
   descriptions, summaries). See `skills/write-as-dejan/SKILL.md`.
 

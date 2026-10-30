@@ -1,0 +1,10 @@
+# Machine-readable work-package DAG for multi-session delivery.
+# status: todo | claimed | in_progress | in_review | blocked | done
+# human_gate: true = an agent prepares code/config, a human executes live verification or approval.
+# blocked_by: HD-xx / Q-xx in .ratchet/human-dependencies.md. Build the Unblock-with default meanwhile.
+
+work_packages:
+  - { id: WP-CORE.1, lane: core, title: Schema and offline validator,          depends_on: [],          blocked_by: [],      human_gate: false, status: done,      owner: null }
+  - { id: WP-CORE.2, lane: core, title: Opt-in runtime wiring (dark launch),   depends_on: [WP-CORE.1], blocked_by: [HD-01], human_gate: false, status: todo,      owner: null }
+  - { id: WP-CORE.3, lane: core, title: Live runbook verification on main,     depends_on: [WP-CORE.2], blocked_by: [HD-01], human_gate: true,  status: todo,      owner: null }
+  - { id: WP-CORE.4, lane: core, title: Flip default and release to users,     depends_on: [WP-CORE.3], blocked_by: [],      human_gate: false, status: todo,      owner: null }

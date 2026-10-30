@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
 from tools.validate import (
     DIAGRAM_LOOP_REQUIRED_DEPENDENCIES,
     DIAGRAM_LOOP_REQUIRED_FILES,
+    WORK_PACKAGES_REQUIRED_FILES,
     parse_frontmatter,
     run_checks,
 )
@@ -126,6 +128,10 @@ def build_fixture_repo(root: Path) -> None:
     (root / "skills" / "diagram-loop" / "renderer" / ".node-version").write_text(
         "24.14.0\n"
     )
+    for relative_path in WORK_PACKAGES_REQUIRED_FILES:
+        target = root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((PROJECT_ROOT / relative_path).read_text())
     write_canonical_fixture(root)
 
 
@@ -276,6 +282,7 @@ class TestSkillFrontmatter:
         (repo / "skills" / "demo" / "SKILL.md").unlink()
         (repo / "skills" / "swe-loop" / "SKILL.md").unlink()
         (repo / "skills" / "diagram-loop" / "SKILL.md").unlink()
+        (repo / "skills" / "work-packages" / "SKILL.md").unlink()
         findings = run_checks(repo)
         assert any("no skills/*/SKILL.md" in finding for finding in findings)
 
@@ -903,6 +910,70 @@ class TestDiagramLoopPackage:
         node_version.write_text("23.0.0\n")
         findings = run_checks(repo)
         assert any("Node version must match" in finding for finding in findings)
+
+
+class TestWorkPackagesContract:
+    def test_missing_required_file_is_reported(self, repo: Path) -> None:
+        missing = repo / "skills" / "work-packages" / "templates" / "work-packages.yaml"
+        missing.unlink()
+        findings = run_checks(repo)
+        assert any(
+            "work-packages required file is missing or empty" in finding
+            for finding in findings
+        )
+
+    def test_session_start_matcher_must_cover_compact(self, repo: Path) -> None:
+        hooks_path = repo / "hooks" / "hooks.json"
+        rewrite_json(
+            hooks_path,
+            lambda data: data["hooks"]["SessionStart"][0].update(matcher="startup"),
+        )
+        findings = run_checks(repo)
+        assert any("SessionStart matcher must cover 'compact'" in f for f in findings)
+
+    def test_session_start_hook_is_silent_when_ratchet_dir_absent(
+        self, tmp_path: Path
+    ) -> None:
+        script = PROJECT_ROOT / "hooks" / "session-start.mjs"
+        res = subprocess.run(
+            ["node", str(script), str(tmp_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert res.stdout == ""
+
+    def test_session_start_hook_renders_active_ready_and_unblock_with(
+        self, tmp_path: Path
+    ) -> None:
+        ratchet_dir = tmp_path / ".ratchet"
+        ratchet_dir.mkdir()
+        (ratchet_dir / "work-packages.yaml").write_text(
+            "work_packages:\n"
+            "  - { id: WP-KV.1, lane: key-vault, title: Runtime schema, depends_on: [], blocked_by: [], human_gate: false, status: done, owner: dejan }\n"
+            "  - { id: WP-KV.2, lane: key-vault, title: Vault Bicep dark launch, depends_on: [WP-KV.1], blocked_by: [HD-01], human_gate: false, status: todo, owner: null }\n"
+            "  - { id: WP-LOG.1, lane: live-logs, title: ASGI probe, depends_on: [], blocked_by: [], human_gate: true, status: in_review, owner: dejan }\n"
+            "  - { id: WP-LOG.2, lane: live-logs, title: Release plugin, depends_on: [WP-LOG.1], blocked_by: [HD-02], human_gate: true, status: blocked, owner: null }\n"
+        )
+        (ratchet_dir / "human-dependencies.md").write_text(
+            "| ID | What | Owner | Blocks | Unblock-with (safe default on `main` until Done) | Status |\n"
+            "|---|---|---|---|---|---|\n"
+            "| HD-01 | Seed prod vault | Ops | WP-KV.2 | Keep manifest optional on main | Open |\n"
+            "| HD-02 | CISO sign-off | CISO | WP-LOG.2 | Keep plugin in draft | Open |\n"
+        )
+        script = PROJECT_ROOT / "hooks" / "session-start.mjs"
+        res = subprocess.run(
+            ["node", str(script), str(tmp_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "<ratchet-work-packages>" in res.stdout
+        assert "1/4 done" in res.stdout
+        assert "WP-LOG.1 [live-logs] (in_review): ASGI probe [human_gate] (owner: dejan)" in res.stdout
+        assert "WP-KV.2 [key-vault]: Vault Bicep dark launch | Open blockers: HD-01 (Unblock-with: Keep manifest optional on main)" in res.stdout
+        assert "WP-LOG.2 [live-logs]: Release plugin (blocked_by: HD-02)" in res.stdout
+
 
 
 class TestCanonicalRegistry:
