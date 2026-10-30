@@ -45,8 +45,9 @@ state file must always show where the work stands.
    memory — picks the version. When writing code against a library, verify
    current API from its docs, never from internal knowledge alone.
 5. **Prose artifacts use the write-as-dejan skill** (ADRs, summaries, PR
-   descriptions): dense, factual, primary-source-grounded, zero marketing
-   tone or dramatization.
+   descriptions, READMEs, docstrings): factual, primary-source-grounded,
+   written for a reader who has not seen the session, zero marketing tone or
+   dramatization.
 6. **Spec drift = return to Phase 0.** If the work stops matching the
    approved ADR, stop, amend the ADR, and re-gate. Never silently diverge.
 7. **No AI attribution in commits or PRs.** Commit messages, PR titles, and

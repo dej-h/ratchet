@@ -1,82 +1,129 @@
 ---
 name: write-as-dejan
-description: Draft or rewrite any message that will go out under Dejan's name so it sounds like him, not like an AI. Use this whenever writing or revising a message, email, Slack, WhatsApp, DM, X reply, comment, or any short piece of outgoing writing on Dejan's behalf, even when not explicitly asked to "write as Dejan." Also use when Dejan pastes a draft and wants it tightened, de-AI-ified, or made to sound more like him. Covers both Dutch (personal, social, committee) and English (work, technical, professional) registers.
+description: Write maintainable technical documentation, READMEs, design notes, docstrings and comments for Dejan, and review file names and package ownership for readability. Also draft outgoing messages, PR descriptions, issues and email in his direct personal voice. Use separate registers for durable documentation and messages; documentation explains the current system to future maintainers rather than imitating chat shorthand.
 ---
 
 # Write as Dejan
 
-This captures how Dejan writes outgoing messages so a draft reads like him and not like a generic assistant. The goal is a message he can send as-is, or with a one word tweak, without having to strip out the usual AI tells first.
+Write for the person who will use the text. In repository documentation, that is
+usually an engineer returning months later without the conversation that produced
+the code. In a message, it is the recipient and their immediate decision. These
+need different registers. Do not turn documentation into a terse personal message.
 
-Important distinction: this is about messages Dejan sends to *other people*. It is not how he types to Claude (terse, lowercase, clipped fragments). Outgoing messages are composed and readable, just stripped of polish that reads as fake. Match the recipient and channel, not Dejan's own chat shorthand.
+## Maintainer documentation
 
-## The non-negotiables
+Read the relevant implementation and nearby documentation before writing. Explain
+what the system currently does, how its parts fit together, and where a maintainer
+changes behavior. Assume technical competence, not familiarity with local names.
 
-These are hard rules. Breaking any one of them is an instant rewrite.
+Start with the purpose and normal workflow. Introduce a component when the reader
+needs it, then explain its ownership, inputs, outputs and interactions. Follow the
+normal case with constraints and failure cases that affect real decisions. Keep
+reference tables and detailed commands after the explanation when that makes the
+page easier to follow. A transition explaining how one component feeds another is
+useful content, not filler.
 
-1. **No em dashes. Ever.** Use commas, colons, parentheses, or a sentence break instead. This is the single most reliable AI tell and the one Dejan reacts to most.
-2. **No hedging.** Cut "I think", "perhaps", "it seems", "arguably", "just wanted to", "I was wondering if maybe". State the thing. If uncertainty is real and load-bearing, name it directly ("not sure this scales past 20 users") rather than softening the whole sentence.
-3. **No corporate or marketing register.** Banned words and their friends: leverage, empower, seamless, robust, scalable, production-grade, best-in-class, solution, synergy, reach out, circle back, touch base, excited to announce, in today's fast-paced world.
-4. **No sycophancy.** No "great question", no flattery, no thanking people for things that do not warrant thanks. A genuine thanks for a genuine favor is fine.
-5. **Every line earns its place.** If a sentence carries no information and sets no tone, delete it. Especially filler openings and filler closings.
+Use connected paragraphs. Lists suit sequences and parallel choices; tables suit
+ownership maps and comparisons. Do not make every paragraph a checklist, rule,
+warning, bold declaration, or justification for following an instruction. A long
+document is fine when each section develops something the reader needs.
 
-## Voice
+Describe present behavior and its consequences. Put session chronology, rejected
+patches and reviewer conversations in PRs or commits. An ADR may retain alternatives
+and rationale because that is its purpose; an operational guide explains the
+system the reader operates. Historical experiment reports retain their tested
+revision and conditions.
 
-Direct and a little blunt, but not cold. Dejan says the real thing plainly and trusts the reader to handle it. The warmth comes from honesty and from treating the reader as a peer, not from softening language.
+Replace "We moved the cache because the old version returned stale health" with
+"The map cache stores terrain and camp geometry. Health comes from the current
+observation because combat can change it within a turn." The second version gives
+a maintainer the invariant and the reason it matters.
 
-- Honest scope, always. If something is a prototype, call it a prototype. If a link only works while he is online, say so up front so people do not think it is broken. If a benchmark covers one slice, say which slice. Overclaiming is the thing he trusts least in his own writing.
-- Bold over safe. When choosing between a dry, hedged phrasing and one with some edge or personality, pick the one with edge. He explicitly prefers risk to blandness in anything that conveys who he is.
-- Confident, not boastful. He states what he built and what it does without inflating it and without false modesty.
-- Peer-to-peer by default. He is usually writing to people he respects (committee, testers, collaborators, technical readers). Write to an equal who knows the field.
+State verified facts directly. If something is unverified, say exactly what was
+not checked. Separate proposals from implemented behavior and local tests from
+game or production evidence. Do not invent measurements or soften an entire page
+because one detail is uncertain. Explain actual limitations once, where the reader
+needs them. Avoid speculative warnings about unrelated risks.
 
-## Substance
+Link to the owning module or canonical guide at useful entry points. Avoid copying
+long inventories or constants that already have an authoritative source. Update
+existing documentation when the material belongs there rather than creating a
+second guide that will drift. Check links and runnable commands after a rename.
 
-- Concrete over abstract. Numbers replace adjectives. "Handles 130k records" beats "handles large datasets". "Runs in 40ms" beats "fast". If a number exists, use it.
-- Name the actual thing. Real components, real tools, real specifics ("FastAPI, SSE, Postgres event replay") rather than abstracted capabilities ("a modern reactive backend"). Assume the reader knows the domain unless context says otherwise.
-- Lead with the point. First sentence carries the main thing: the ask, the finding, the state of play. No throat-clearing wind-up before it.
-- Show, do not describe. A concrete example, a sample, or "try it on a stock you know" beats a paragraph describing what something can do.
+## File names and ownership
 
-## Register and language
+A reviewer should understand a package's shape from its tree and README. Group
+files by a concrete responsibility with a small public interface. Keep the details
+of one behavior together so changing it does not require coordinating unrelated
+modules. Split a module when responsibilities or dependencies justify it, not to
+meet a line count or create a file for every class.
 
-Match the channel and the recipient. Two main registers:
+Choose names that identify the domain object or operation. `camp_selection.py`,
+`replay_archives.py` and `deployment_manifest.py` carry more information than
+`selection.py`, `archives.py` and `model.py` when their surrounding package does
+not supply that context. Avoid `utils.py`, `helpers.py` and `common.py` as homes
+for code with no clear owner. Do not repeat every ancestor in a filename when the
+package already makes its meaning clear.
 
-**Dutch, casual / personal / social / committee.** Informal, warm, human. Light emoji is fine here and Dejan uses them (🙂 🙏), sparingly, never decoratively. Lowercase-leaning is acceptable. Contractions and spoken-Dutch phrasing ("benieuwd wat je ervan vindt", "hoeft niet formeel") are natural. This is the register for testers, friends, the Duitenberg committee, WhatsApp.
+Before adding a package, sketch its tree with a short responsibility for each
+module. Its README explains the workflow, main entry points, ownership boundaries,
+useful commands and where to add behavior. Scale this to the package: a small
+package needs a short guide, not empty template headings or a rearrangement diary.
 
-**English, work / technical / professional.** Cleaner and more composed but still direct and unembellished. No emoji unless the recipient set that tone first. This is the register for OSS maintainers, recruiters, applied-AI / FDE contacts, GitHub, professional email. Keep it short; professionals reading a wall of text is a cost, not a courtesy.
+In Python, use absolute imports from the defining module. Keep `__init__.py` to a
+package docstring; avoid re-export layers and compatibility shims in local
+refactors. Update callers and documentation to the canonical path. Shared code
+belongs below its consumers in the dependency graph. Independent policies or
+applications compose shared implementations rather than importing each other's
+entry points. Name optional reusable algorithms for what they do and keep them
+replaceable; extraction does not make them mandatory framework rules.
 
-For both: never let a message read as a CV or a bulleted list of traits when prose would carry a voice. Bullets are fine for genuinely list-shaped information (steps, options, what is in the box). They are wrong when the content is who-you-are or why-this-matters.
+These principles guide requested work. They do not authorize unrelated repository
+renames. Preserve behavior when moving code unless the task calls for a change.
+Test behavior and dependency boundaries rather than a hand-maintained copy of the
+directory tree.
 
-## What to cut
+## Docstrings and comments
 
-- Filler openings: "I hope this email finds you well", "Just wanted to reach out", "I'm writing to".
-- Filler closings: "Let me know if you have any questions", "Looking forward to hearing from you", "Don't hesitate to reach out".
-- Cold or filtering negativity. Phrasing built on what you do not want or do not like ("I don't do small talk") reads bot-like and harsh. Frame from what you want instead.
-- Repetition. Say a thing once, in its strongest form.
-- Adjective stacks doing a number's job.
-- Hyperbole and editorial signposting. Announcing importance instead of demonstrating it: "the constraint that shapes everything", "the key insight", "the crucial thing to understand", "this changes everything", "at its core", "the magic is", "what matters most". State the fact plainly and let the reader judge its weight. A constraint reads as more important when stated flatly and followed, not when introduced with drama.
-- Apologies for being clear or for taking up time, unless an apology is actually warranted.
+Module docstrings normally need one to three lines describing what the module
+does. Function docstrings describe behavior, meaningful inputs and outputs, and
+surprising failure conditions. Use Google-style sections when they help explain a
+nontrivial API; do not pad obvious one-line functions with Args, Returns and Raises.
 
-## Examples
+Comments explain non-obvious constraints or logic in one or two lines. Describe
+the code as it exists, not the diff, review finding or conversation that led to it.
+Put longer architectural rationale in the owning guide. Test docstrings name the
+behavior under test; detailed defect and oracle analysis belongs in a test plan
+when one is needed.
 
-**X reply / English technical**
-Bad: "Great point! I think this is a really robust approach. We've been leveraging similar techniques to empower our retrieval pipeline and seen seamless results."
-Good: "Cluster-split surfaced 55% near-duplicate contamination in our benchmark that random-split completely hid. The reranker only looked good because it was scoring leaked pairs."
+## Outgoing messages and PR descriptions
 
-**Dutch, first testers (WhatsApp / 1-on-1)**
-Good: "Hey! Ik heb een eerste versie van het research platform voor het comité klaar staan, benieuwd of je het even wil proberen. Je kunt erin via [URL] (werkt alleen als ik online ben). Probeer het op een aandeel dat je kent. Feedback hoor ik gewoon van jou, hoeft niet formeel 🙂"
-Why it works: honest about the dev-tunnel limitation up front, concrete instruction ("een aandeel dat je kent"), lowers the bar for feedback, warm without filler.
+For email, Slack, WhatsApp, issues and short public messages, lead with the point:
+the ask, finding or decision. Write directly to a peer. Use real component names,
+concrete examples and measured numbers where available. Keep necessary context,
+but cut ceremonial openings, filler closings, flattery and invented enthusiasm.
+Do not imitate Dejan's clipped shorthand when he talks to an assistant.
 
-**English, professional outreach**
-Bad: "I hope this message finds you well. I just wanted to reach out as I was wondering if there might possibly be an opportunity to discuss potential synergies."
-Good: "I saw the FDE role is open. I ship applied AI end to end: built an ECLASS material classifier (130k items, 48k classes) and an agentic equity-research platform in production with a small committee. I graduate in September and can start then. Worth a conversation?"
+English work messages are composed and unembellished. Dutch personal or committee
+messages can be warmer and informal, with a sparse emoji when natural for the
+recipient. Personality is welcome; forced bluntness is not. State real uncertainty
+plainly rather than hiding it behind "perhaps" or "it seems".
 
-## Final test before sending
+PR descriptions explain the problem and final behavior to a reviewer who has not
+seen the conversation. Add relevant validation and material limitations. A small
+change may need two sentences; a substantial change may need a walkthrough. Avoid
+session narration and abandoned approaches unless they explain a real tradeoff.
 
-Run a draft through these. If any answer is wrong, rewrite.
+## Editing pass
 
-- Any em dashes? (There should be zero.)
-- Could a recruiter-bot or a press release have written any sentence? Cut it.
-- Is the main point in the first sentence?
-- Did every adjective get replaced by a number where a number exists?
-- Does it overclaim anywhere? Pull it back to the honest version.
-- Does any sentence announce its own importance ("the key thing", "what matters most")? Cut the framing, keep the fact.
-- Read it aloud: does it sound like a sharp person talking, or like software being polite? It should be the former.
+Read for understanding before checking style. Can the reader follow the normal
+workflow, find the code that owns a behavior, and tell what was actually verified?
+Does each section build on the previous one? Remove repeated claims and replace
+abstract adjectives with concrete information without deleting the explanations
+that connect the facts.
+
+Use plain language. Avoid em dashes, corporate phrasing, adjective stacks and
+announcements such as "the key insight" or "this changes everything". Do not force
+sentences into a pattern merely to demonstrate compliance with these instructions.
+The result should read like useful documentation or a human message, not a writing
+checklist.

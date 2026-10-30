@@ -41,8 +41,10 @@ harnesses read the identical `SKILL.md` files.
   prompt echoing, transition narration (`"Previously X, now Y"`), redundant
   comments, prompt-shaped test names, and transitional wrappers before Phase 5
   review or ad-hoc PR creation. See `skills/consolidate/SKILL.md`.
-- **write-as-dejan**: a writing-voice skill for prose artifacts (ADRs, PR
-  descriptions, summaries). See `skills/write-as-dejan/SKILL.md`.
+- **write-as-dejan**: a writing skill with two registers: maintainer
+  documentation (READMEs, ADRs, design notes, docstrings, file and package
+  naming) and outgoing messages (PR descriptions, issues, Slack, email). See
+  `skills/write-as-dejan/SKILL.md`.
 
 Design rationale for the repo structure itself:
 `docs/architecture-decisions/001-repo-plugin-structure.md`.
