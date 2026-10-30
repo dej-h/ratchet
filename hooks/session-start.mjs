@@ -73,13 +73,47 @@ function splitTopLevelFields(flowContent) {
       depth += 1;
     } else if (ch === ']' || ch === '}') {
       depth -= 1;
-    } else if (ch === ',' && depth === 0) {
+    } else if (
+      ch === ',' &&
+      depth === 0 &&
+      /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*:/.test(flowContent.slice(i + 1))
+    ) {
       fields.push(flowContent.slice(start, i));
       start = i + 1;
     }
   }
   fields.push(flowContent.slice(start));
   return fields;
+}
+
+function stripTrailingComment(rawLine) {
+  let quote = null;
+  let braceDepth = 0;
+  for (let i = 0; i < rawLine.length; i += 1) {
+    const ch = rawLine[i];
+    if (quote) {
+      if (ch === quote && rawLine[i - 1] !== '\\') {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '{' || ch === '[') {
+      braceDepth += 1;
+    } else if (ch === '}' || ch === ']') {
+      braceDepth = Math.max(0, braceDepth - 1);
+    } else if (
+      ch === '#' &&
+      braceDepth === 0 &&
+      (i === 0 || /\s/.test(rawLine[i - 1]))
+    ) {
+      return rawLine.slice(0, i);
+    }
+  }
+  return rawLine;
 }
 
 function normalizeWorkPackage(rawObj) {
@@ -129,13 +163,7 @@ export function parseWorkPackages(yamlText) {
   let currentBlock = null;
 
   for (const rawLine of yamlText.split(/\r?\n/)) {
-    const commentIndex = rawLine.search(/\s+#|^#/);
-    const line =
-      commentIndex === 0
-        ? ''
-        : commentIndex > 0
-          ? rawLine.slice(0, commentIndex)
-          : rawLine;
+    const line = stripTrailingComment(rawLine);
     if (!line.trim()) {
       continue;
     }

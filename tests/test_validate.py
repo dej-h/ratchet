@@ -974,6 +974,27 @@ class TestWorkPackagesContract:
         assert "WP-KV.2 [key-vault]: Vault Bicep dark launch | Open blockers: HD-01 (Unblock-with: Keep manifest optional on main)" in res.stdout
         assert "WP-LOG.2 [live-logs]: Release plugin (blocked_by: HD-02)" in res.stdout
 
+    def test_session_start_hook_handles_commas_and_hash_refs_inside_flow_line(
+        self, tmp_path: Path
+    ) -> None:
+        ratchet_dir = tmp_path / ".ratchet"
+        ratchet_dir.mkdir()
+        (ratchet_dir / "work-packages.yaml").write_text(
+            "work_packages:\n"
+            "  - { id: WP-KV.1, lane: key-vault, title: Extract schema, policy validator & planner for #30, ref: \"#30\", depends_on: [], blocked_by: [], human_gate: false, status: todo, owner: null }\n"
+        )
+        script = PROJECT_ROOT / "hooks" / "session-start.mjs"
+        res = subprocess.run(
+            ["node", str(script), str(tmp_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert (
+            "WP-KV.1 [key-vault]: Extract schema, policy validator & planner for #30"
+            in res.stdout
+        )
+
 
 
 class TestCanonicalRegistry:
