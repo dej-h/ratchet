@@ -34,14 +34,14 @@ and rationale because that is its purpose; an operational guide explains the
 system the reader operates. Historical experiment reports retain their tested
 revision and conditions.
 
-Replace "We moved the cache because the old version returned stale health" with
-"The map cache stores terrain and camp geometry. Health comes from the current
-observation because combat can change it within a turn." The second version gives
-a maintainer the invariant and the reason it matters.
+Replace "We moved the cache because the old version returned stale prices" with
+"The catalog cache stores product names and descriptions. Prices come from the
+pricing service on every request because they can change during the day." The
+second version gives a maintainer the invariant and the reason it matters.
 
 State verified facts directly. If something is unverified, say exactly what was
 not checked. Separate proposals from implemented behavior and local tests from
-game or production evidence. Do not invent measurements or soften an entire page
+staging or production evidence. Do not invent measurements or soften an entire page
 because one detail is uncertain. Explain actual limitations once, where the reader
 needs them. Avoid speculative warnings about unrelated risks.
 
@@ -58,9 +58,9 @@ of one behavior together so changing it does not require coordinating unrelated
 modules. Split a module when responsibilities or dependencies justify it, not to
 meet a line count or create a file for every class.
 
-Choose names that identify the domain object or operation. `camp_selection.py`,
-`replay_archives.py` and `deployment_manifest.py` carry more information than
-`selection.py`, `archives.py` and `model.py` when their surrounding package does
+Choose names that identify the domain object or operation. `invoice_matching.py`,
+`export_archives.py` and `deployment_manifest.py` carry more information than
+`matching.py`, `archives.py` and `model.py` when their surrounding package does
 not supply that context. Avoid `utils.py`, `helpers.py` and `common.py` as homes
 for code with no clear owner. Do not repeat every ancestor in a filename when the
 package already makes its meaning clear.
