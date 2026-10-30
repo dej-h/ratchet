@@ -279,10 +279,8 @@ class TestSkillFrontmatter:
         assert any("missing 'description'" in finding for finding in findings)
 
     def test_empty_skills_dir_is_reported(self, repo: Path) -> None:
-        (repo / "skills" / "demo" / "SKILL.md").unlink()
-        (repo / "skills" / "swe-loop" / "SKILL.md").unlink()
-        (repo / "skills" / "diagram-loop" / "SKILL.md").unlink()
-        (repo / "skills" / "work-packages" / "SKILL.md").unlink()
+        for skill_md in (repo / "skills").glob("*/SKILL.md"):
+            skill_md.unlink()
         findings = run_checks(repo)
         assert any("no skills/*/SKILL.md" in finding for finding in findings)
 
@@ -1024,6 +1022,59 @@ class TestWorkPackagesContract:
         assert "Untracked Open GitHub Issues" in res.stdout
         assert "#99: Brand new untracked GitHub issue" in res.stdout
         assert "#10: Already tracked issue" not in res.stdout
+
+    def test_swe_loop_cursor_recovery_and_workspace_mode_commit_block(
+        self, tmp_path: Path
+    ) -> None:
+        repo_dir = tmp_path / "sample-repo"
+        (repo_dir / ".git").mkdir(parents=True)
+        loops_root = tmp_path / "swe-loops"
+        loop_dir = loops_root / "sample-repo" / "auth-fix"
+        loop_dir.mkdir(parents=True)
+        (loop_dir / "state.md").write_text(
+            "# Loop state: auth-fix\n\n"
+            "## Cursor\n\n"
+            "- **Profile:** bugfix\n"
+            "- **Mode:** workspace\n"
+            "- **Status:** active\n"
+            "- **Current phase:** 4 Test\n"
+            "- **Current boundary:** phase4.test-intent\n"
+            "- **Current task:** T2\n"
+            "- **Next action:** Run reproduction test\n"
+        )
+        env = {
+            **subprocess.os.environ,
+            "RATCHET_SWE_LOOPS_ROOT": str(loops_root),
+            "RATCHET_SKIP_GH_ISSUES": "1",
+        }
+        start_res = subprocess.run(
+            ["node", str(PROJECT_ROOT / "hooks" / "session-start.mjs"), str(repo_dir)],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True,
+        )
+        assert "<ratchet-swe-loop>" in start_res.stdout
+        assert "Active swe-loop 'auth-fix'" in start_res.stdout
+        assert "mode=workspace" in start_res.stdout
+        assert "Next action: Run reproduction test" in start_res.stdout
+
+        pre_res = subprocess.run(
+            ["node", str(PROJECT_ROOT / "hooks" / "pre-tool-use.mjs")],
+            input=json.dumps(
+                {
+                    "cwd": str(repo_dir),
+                    "tool_input": {"command": "git -C " + str(repo_dir) + " commit -m 'wip'"},
+                }
+            ),
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True,
+        )
+        decision = json.loads(pre_res.stdout)
+        assert decision["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert "workspace mode" in decision["hookSpecificOutput"]["permissionDecisionReason"]
 
     def test_pre_tool_use_allows_git_push_and_blocks_gh_pr_create_without_wp_update(
         self, tmp_path: Path

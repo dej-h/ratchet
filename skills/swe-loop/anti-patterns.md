@@ -31,17 +31,31 @@ when a new failure mode is caught in review, add it here.
 - [ ] A dependency added, written, or changed without confirming it is the
       actual latest stable release.
 
-## Diff hygiene
+## Diff hygiene & semantic sediment
 
 - [ ] Churn: reformatting, renaming, or "improving" code the task doesn't
       touch.
 - [ ] Documentation edited that the change didn't directly invalidate.
+- [ ] Prompt echoing or transition narration in comments, docstrings, or test
+      names (`"Previously X, now Y"`, `"Fixed issue..."`, names derived from
+      prompt wording instead of the domain model). The code and docs must read
+      as if the final architecture had been known from the beginning.
+- [ ] Redundant comments that restate the code rather than explaining a
+      non-obvious invariant, constraint, or hazard.
+- [ ] Transitional scaffolding, single-use wrapper helpers, or dead
+      compatibility branches left over from iterative debugging.
 
 ## Testing
 
-- [ ] Tests that assert implementation details instead of behavior.
+- [ ] Tests that assert implementation details or mock call-order choreography
+      instead of observable behavior at a real boundary.
+- [ ] Low-signal filler tests (`isinstance`, `is not None`, copied constants,
+      or testing the framework/Pydantic instead of repository logic).
+- [ ] Parametrized or duplicated test cases added to inflate test count without
+      covering a distinct production failure mode.
 - [ ] Tests written to pass rather than to probe — no edge cases, no failure
-      modes, happy path only.
+      modes, happy path only, or mocking out the exact boundary the test claims
+      to prove.
 
 ## Error handling
 

@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { findRatchetDir } from './session-start.mjs';
+import { findActiveSweLoops, findRatchetDir } from './session-start.mjs';
 
 const GH_PR_CREATE_RE = /\bgh\s+(?:--?[\w-]+(?:=\S+|\s+\S+)?\s+)*pr\s+create\b/i;
+const GIT_COMMIT_OR_PUSH_RE =
+  /\bgit\b(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree)(?:=\S+|\s+\S+)|--?[\w-]+))*\s+(?:commit|push)\b/i;
 
 function resolveBaseRef(repoRoot) {
   for (const candidate of ['origin/main', 'origin/master', 'main', 'master']) {
@@ -24,17 +26,38 @@ function resolveBaseRef(repoRoot) {
 
 /**
  * Evaluate a PreToolUse Bash command.
- * Only gates `gh pr create` inside repositories that contain `.ratchet/work-packages.yaml`.
+ * 1. Blocks `git commit` and `git push` when an active swe-loop for the repo is in `mode: workspace`.
+ * 2. Gates `gh pr create` inside repositories that contain `.ratchet/work-packages.yaml`.
  */
 export function evaluatePreToolUse(hookInput, fallbackCwd = process.cwd()) {
   const command = String(hookInput?.tool_input?.command ?? '');
-  if (!command || !GH_PR_CREATE_RE.test(command)) {
+  if (!command) {
     return null;
   }
 
   const startDir = String(
     hookInput?.cwd || process.env.CLAUDE_PROJECT_DIR || fallbackCwd
   );
+
+  if (GIT_COMMIT_OR_PUSH_RE.test(command)) {
+    const workspaceLoop = findActiveSweLoops(startDir).find(
+      (loop) => loop.mode === 'workspace'
+    );
+    if (workspaceLoop) {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: `Blocked git commit/push: active swe-loop '${workspaceLoop.slug}' (${workspaceLoop.statePath}) is in workspace mode. Leave changes staged/unstaged in the working tree instead of committing or pushing.`,
+        },
+      };
+    }
+  }
+
+  if (!GH_PR_CREATE_RE.test(command)) {
+    return null;
+  }
+
   const ratchetDir = findRatchetDir(startDir);
   if (!ratchetDir) {
     return null;
