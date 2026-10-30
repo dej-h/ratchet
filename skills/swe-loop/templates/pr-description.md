@@ -5,7 +5,7 @@ ADR: <link to resolved ADR path>
 ## What changed
 
 The problem and the final behavior, for a reviewer who has not seen the
-conversation; not the journey. writing-house-style message register.
+conversation; not the journey. writing-house-style PR description register.
 
 ## Architecture
 
