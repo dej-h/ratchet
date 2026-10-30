@@ -1,7 +1,7 @@
 {
   "name": "ratchet",
   "version": "0.4.0",
-  "description": "Phase-gated SWE delivery and explicitly invoked premium diagram production for coding agents. Ships with swe-loop, diagram-loop, and the write-as-dejan writing-voice skill.",
+  "description": "Phase-gated SWE delivery and explicitly invoked premium diagram production for coding agents. Ships with swe-loop, diagram-loop, and the writing-house-style skill.",
   "author": "Dejan Honderd",
   "license": "MIT",
   "skills": "./skills",

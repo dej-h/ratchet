@@ -4,7 +4,8 @@ ADR: <link to resolved ADR path>
 
 ## What changed
 
-Dense summary — the change itself, not the journey. write-as-dejan register.
+The problem and the final behavior, for a reviewer who has not seen the
+conversation; not the journey. writing-house-style PR description register.
 
 ## Architecture
 
