@@ -9,13 +9,14 @@ messages. The reader is the recipient, and the text serves their next step.
 Lead with the point: the ask, finding or decision. Write directly to a peer. Use
 real component names, concrete examples and measured numbers where available. Keep
 necessary context, but cut ceremonial openings, filler closings, flattery and
-invented enthusiasm. Do not imitate Dejan's clipped shorthand when he talks to an
-assistant.
+invented enthusiasm. Do not imitate the author's clipped shorthand from an
+assistant conversation.
 
-English work messages are composed and unembellished. Dutch personal or committee
-messages can be warmer and informal, with a sparse emoji when natural for the
-recipient. Personality is welcome; forced bluntness is not. State real uncertainty
-plainly rather than hiding it behind "perhaps" or "it seems".
+Match the language, channel and recipient. Work messages are composed and
+unembellished. Personal or committee messages can be warmer and informal, with a
+sparse emoji when natural for the recipient. Personality is welcome; forced
+bluntness is not. State real uncertainty plainly rather than hiding it behind
+"perhaps" or "it seems".
 
 ## PR descriptions
 

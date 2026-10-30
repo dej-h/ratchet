@@ -1,6 +1,6 @@
 ---
 name: writing-house-style
-description: House style for any prose written in or about Dejan's work. Covers maintainable technical documentation (READMEs, guides, ADRs, design notes, docstrings, comments, file and package naming) and outgoing messages (PR descriptions, issues, review comments, email, Slack, WhatsApp). Use whenever writing or revising either; the skill routes to the documentation or the message register so durable docs explain the current system instead of reading like a terse message.
+description: House style for maintainable technical documentation (READMEs, guides, ADRs, design notes, docstrings, comments, file and package naming) and outgoing messages (PR descriptions, issues, review comments, email, Slack, WhatsApp). Use whenever writing or revising either; the skill routes to the documentation or the message register so durable docs explain the current system instead of reading like a terse message.
 ---
 
 # Writing house style
