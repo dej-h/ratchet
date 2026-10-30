@@ -58,13 +58,12 @@ Bootstrap a repository by copying
    `swe-loop` runs, claiming, completing, or blocking a work package updates
    `.ratchet/work-packages.yaml` (and `.ratchet/human-dependencies.md` when
    blockers change) in the same commit or PR.
-6. **Strict compactness budget (under 100 lines).** Every work package in
+6. **One flow-mapping line per work package.** Every work package in
    `.ratchet/work-packages.yaml` MUST be a **single flow-mapping line**
    (`- { id: ..., lane: ..., title: "...", ref: "...", depends_on: [...], blocked_by: [...], human_gate: false, status: todo, owner: null }`).
    Never write multi-line YAML blocks per package, never embed prose paragraphs
    (`deliverable_and_acceptance`, `dark_launch`, or GitHub API snapshots) in
-   `work-packages.yaml`, never include Dependabot/bot bumps, and keep unstarted
-   future backlog epics as at most one coarse row until active.
+   `work-packages.yaml`, and never include Dependabot/bot bumps.
 
 ## Splitting a feature or backlog into work packages
 
