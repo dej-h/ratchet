@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
@@ -25,6 +26,89 @@ export function findRatchetDir(startDir) {
     }
     current = parent;
   }
+}
+
+export function findRepoRoot(startDir) {
+  let current = path.resolve(startDir);
+  while (true) {
+    if (
+      fs.existsSync(path.join(current, '.git')) ||
+      fs.existsSync(path.join(current, '.ratchet'))
+    ) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return path.resolve(startDir);
+    }
+    current = parent;
+  }
+}
+
+function readStateField(stateText, fieldName) {
+  const escaped = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`^-\\s*\\*\\*${escaped}:\\*\\*\\s*(.+)$`, 'im');
+  const match = stateText.match(re);
+  return match ? match[1].trim() : '';
+}
+
+/**
+ * Find active swe-loop state.md files for the repository at startDir.
+ */
+export function findActiveSweLoops(startDir) {
+  const repoRoot = findRepoRoot(startDir);
+  const repoBase = path.basename(repoRoot);
+  const loopsRoot =
+    process.env.RATCHET_SWE_LOOPS_ROOT ||
+    path.join(os.homedir(), '.claude', 'swe-loops');
+  const repoLoopsDir = path.join(loopsRoot, repoBase);
+  if (!fs.existsSync(repoLoopsDir) || !fs.statSync(repoLoopsDir).isDirectory()) {
+    return [];
+  }
+
+  const activeLoops = [];
+  for (const entry of fs.readdirSync(repoLoopsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const statePath = path.join(repoLoopsDir, entry.name, 'state.md');
+    if (!fs.existsSync(statePath) || !fs.statSync(statePath).isFile()) {
+      continue;
+    }
+    const text = fs.readFileSync(statePath, 'utf8');
+    const status = readStateField(text, 'Status').toLowerCase();
+    if (status === 'active' || status === 'in_progress') {
+      activeLoops.push({
+        slug: entry.name,
+        statePath,
+        status,
+        profile: readStateField(text, 'Profile'),
+        mode: readStateField(text, 'Mode').toLowerCase(),
+        currentPhase: readStateField(text, 'Current phase'),
+        currentBoundary: readStateField(text, 'Current boundary'),
+        currentTask: readStateField(text, 'Current task'),
+        nextAction: readStateField(text, 'Next action'),
+      });
+    }
+  }
+  return activeLoops;
+}
+
+export function buildSweLoopBriefing(activeLoops) {
+  if (!activeLoops.length) {
+    return '';
+  }
+  const lines = ['<ratchet-swe-loop>'];
+  for (const loop of activeLoops) {
+    lines.push(
+      `Active swe-loop '${loop.slug}' (${loop.statePath}): mode=${loop.mode || 'unknown'}, profile=${loop.profile || 'feature'}, phase=${loop.currentPhase || 'unknown'}, boundary=${loop.currentBoundary || 'none'}, task=${loop.currentTask || 'none'}.`
+    );
+    if (loop.nextAction) {
+      lines.push(`  Next action: ${loop.nextAction}`);
+    }
+  }
+  lines.push('</ratchet-swe-loop>', '');
+  return lines.join('\n');
 }
 
 function stripScalar(raw) {
@@ -394,9 +478,11 @@ export function buildBriefing(
 }
 
 export function runSessionStart(startDir) {
+  const activeLoops = findActiveSweLoops(startDir);
+  const sweLoopBlock = buildSweLoopBriefing(activeLoops);
   const ratchetDir = findRatchetDir(startDir);
   if (!ratchetDir) {
-    return '';
+    return sweLoopBlock;
   }
   const wpPath = path.join(ratchetDir, WORK_PACKAGES_FILE);
   const hdPath = path.join(ratchetDir, HUMAN_DEPS_FILE);
@@ -410,7 +496,13 @@ export function runSessionStart(startDir) {
     (issue) =>
       typeof issue?.number === 'number' && !referencedNumbers.has(issue.number)
   );
-  return buildBriefing(ratchetDir, workPackages, humanDeps, untrackedIssues);
+  const wpBlock = buildBriefing(
+    ratchetDir,
+    workPackages,
+    humanDeps,
+    untrackedIssues
+  );
+  return `${sweLoopBlock}${wpBlock}`;
 }
 
 const isMain =

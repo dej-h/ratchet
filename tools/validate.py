@@ -144,6 +144,7 @@ HOOKS_MANIFEST_PATH = Path("hooks/hooks.json")
 SESSION_START_HOOK_PATH = Path("hooks/session-start.mjs")
 PRE_TOOL_USE_HOOK_PATH = Path("hooks/pre-tool-use.mjs")
 WORK_PACKAGES_SKILL_PATH = Path("skills/work-packages/SKILL.md")
+CONSOLIDATE_SKILL_PATH = Path("skills/consolidate/SKILL.md")
 WORK_PACKAGES_TEMPLATE_PATH = Path("skills/work-packages/templates/work-packages.yaml")
 HUMAN_DEPS_TEMPLATE_PATH = Path("skills/work-packages/templates/human-dependencies.md")
 WORK_PACKAGES_REQUIRED_FILES: tuple[Path, ...] = (
@@ -151,6 +152,7 @@ WORK_PACKAGES_REQUIRED_FILES: tuple[Path, ...] = (
     SESSION_START_HOOK_PATH,
     PRE_TOOL_USE_HOOK_PATH,
     WORK_PACKAGES_SKILL_PATH,
+    CONSOLIDATE_SKILL_PATH,
     WORK_PACKAGES_TEMPLATE_PATH,
     HUMAN_DEPS_TEMPLATE_PATH,
 )

@@ -10,11 +10,15 @@ reason. Copying this template does not complete the boundary.
 
 ## Behaviors under test
 
-Start from the ADR's EARS criteria — every criterion gets at least one test:
+Start from the ADR's EARS criteria — every criterion gets at least one proving
+test that states the realistic production defect it catches, why its chosen
+level (`unit`, `contract`, `integration`, `provider-replay`, `live`, `eval`) is
+the cheapest level that proves the behavior, the boundary exercised, the
+independent oracle, and how failure is proven:
 
-| EARS criterion (from ADR) | Test type | Planned test | Status / result | Evidence / defer reason |
-|---|---|---|---|---|
-| | unit / integration / e2e | | planned | |
+| EARS criterion (from ADR) | Production defect caught | Level | Boundary & fakes | Independent oracle | Failure proof | Status / result |
+|---|---|---|---|---|---|---|
+| | | unit / contract / integration / provider-replay / live / eval | | | | planned |
 
 ## Edge cases & failure modes
 

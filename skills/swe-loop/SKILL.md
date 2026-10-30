@@ -170,6 +170,21 @@ ADR, planning, integration, testing, or delivery requirements.
 
 Do:
 - Restate the problem in one paragraph.
+- **Product and parity inventory (rebuilds, migrations, and replacements):**
+  when the work replaces, migrates, or rebuilds an existing application,
+  prototype, or workflow, record existing screens/modules, primary user
+  journeys, high-value interactions, preserved behaviors, intentional
+  removals, and source gaps being corrected so required parity items trace
+  directly into the ADR and EARS criteria. For net-new work, record `n/a
+  (net-new)`.
+- **External contribution preflight (unowned repositories):** when the target
+  repository belongs to an external open-source project, read
+  `CONTRIBUTING.md`, issue templates, PR templates, and existing maintainer
+  threads in Phase 0. Record assignment, design-approval, CLA, and branch
+  rules in `state.md`. If upstream rules require maintainer approval or
+  assignment before implementation, stop before coding; never post public
+  issue comments or open an external PR without explicit user approval and
+  satisfied upstream prerequisites.
 - Before creating the ADR, inspect repository instructions and existing ADRs
   to resolve its path using the artifact-location precedence above. Record the
   selected convention in the ADR context when it materially affects review.
@@ -313,22 +328,36 @@ Do:
    Implement the tests per plan. Tests assert behavior, not implementation
    details. Update their result and durable evidence in `test-plan.md` rather
    than copying output into `state.md`.
+- **Test-level and quality discipline:** choose the cheapest level that proves
+  the behavior (`unit`, `contract`, `integration`, `provider-replay`, `live`,
+  `eval`). Use real domain objects for repository-owned code, narrow mocks only
+  at external boundaries, small stateful fakes over mock call-order
+  choreography, and deterministic events/futures instead of arbitrary sleeps in
+  async tests. Use parametrization only for genuine decision tables, never to
+  inflate test count. Prove each test can fail for its intended defect (via red
+  reproduction on base revision for bugfixes, or focused mutation/negation for
+  new behavior).
 - Use the verify skill to exercise the affected flow end-to-end, not just
   unit tests.
+- **Pre-review consolidation pass:** once the planned tests pass, run
+  [../consolidate/SKILL.md](../consolidate/SKILL.md) and re-run the test suite
+  before entering Phase 5.
 - For genuinely high-risk work, a fresh-context review of the test plan is an
   available self-check before step 2. It is not mandatory for every task and
   never becomes a third human gate.
 
 **Exit boundary:** `test-plan.md` and the state boundary existed before test
 code was edited; every planned test is implemented or explicitly deferred
-with a reason.
+with a reason; consolidation pass completed and suite re-verified green.
 
 ### Phase 5 — Independent review
 
 Do — in fresh-context subagents, never the implementing context:
 - **Standards & anti-pattern pass:** subagent loads
   [anti-patterns.md](anti-patterns.md) plus the repo's coding standards and
-  audits the diff against them.
+  audits both the production diff and the test diff against them (verifying
+  that proving tests use independent oracles, exercise real boundaries, avoid
+  low-signal count padding, and carry zero semantic sediment).
 - **Correctness pass:** run the code-review skill on the diff.
 - **Zoom-out pass:** would a larger refactor, test factory, or architectural
   change increase simplicity or flow? Classify anything required for the
@@ -354,7 +383,9 @@ Do:
 - Run the entire test suite.
 - Cross-check the implementation against the ADR section by section — does
   what was built match what was approved? Verify every EARS criterion has a
-  passing test. Confirm the architecture diagram is still accurate.
+  passing proving test and preserve the distinction between deterministic
+  tests, recorded provider replay, live verification, and dataset evaluation.
+  Confirm the architecture diagram is still accurate.
 - If any diagram source changed after Gate A, render every changed diagram in
   dark and light, inspect the final pixels, repeat the guide self-check, and
   record the detail in `evidence.md`. When the repository provides a

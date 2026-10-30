@@ -32,10 +32,15 @@ harnesses read the identical `SKILL.md` files.
 - **work-packages**: an always-on repository work-package DAG
   (`.ratchet/work-packages.yaml`) and external human-dependency ledger
   (`.ratchet/human-dependencies.md` with `Unblock-with` dark-launch defaults),
-  backed by a `SessionStart` hook (`hooks/session-start.mjs`) that briefs
-  active, ready-next, and blocked slices at session start and after compaction
-  while staying silent in repos without `.ratchet/`. See
-  `skills/work-packages/SKILL.md`.
+  backed by `SessionStart` and `PreToolUse` hooks (`hooks/session-start.mjs`,
+  `hooks/pre-tool-use.mjs`) that brief active, ready-next, and untracked GitHub
+  issues at session start/compaction, recover active `swe-loop` cursors, block
+  `workspace`-mode commits, and gate `gh pr create` on updating
+  `.ratchet/work-packages.yaml`. See `skills/work-packages/SKILL.md`.
+- **consolidate**: a behavior-preserving de-sedimentation pass that strips
+  prompt echoing, transition narration (`"Previously X, now Y"`), redundant
+  comments, prompt-shaped test names, and transitional wrappers before Phase 5
+  review or ad-hoc PR creation. See `skills/consolidate/SKILL.md`.
 - **write-as-dejan**: a writing-voice skill for prose artifacts (ADRs, PR
   descriptions, summaries). See `skills/write-as-dejan/SKILL.md`.
 
