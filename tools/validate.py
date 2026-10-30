@@ -140,6 +140,19 @@ DIAGRAM_LOOP_REQUIRED_SCRIPTS: tuple[str, ...] = (
     "test:media",
 )
 
+HOOKS_MANIFEST_PATH = Path("hooks/hooks.json")
+SESSION_START_HOOK_PATH = Path("hooks/session-start.mjs")
+WORK_PACKAGES_SKILL_PATH = Path("skills/work-packages/SKILL.md")
+WORK_PACKAGES_TEMPLATE_PATH = Path("skills/work-packages/templates/work-packages.yaml")
+HUMAN_DEPS_TEMPLATE_PATH = Path("skills/work-packages/templates/human-dependencies.md")
+WORK_PACKAGES_REQUIRED_FILES: tuple[Path, ...] = (
+    HOOKS_MANIFEST_PATH,
+    SESSION_START_HOOK_PATH,
+    WORK_PACKAGES_SKILL_PATH,
+    WORK_PACKAGES_TEMPLATE_PATH,
+    HUMAN_DEPS_TEMPLATE_PATH,
+)
+
 Archetype = Literal["structural", "narrative"]
 RenderingMode = Literal["github-native", "icon"]
 
@@ -879,6 +892,54 @@ def check_diagram_loop_package(repo_root: Path) -> list[str]:
     return findings
 
 
+def check_work_packages_contract(repo_root: Path) -> list[str]:
+    """Verify the always-on .ratchet/ SessionStart hook and work-packages templates."""
+    findings: list[str] = []
+    for relative_path in WORK_PACKAGES_REQUIRED_FILES:
+        full_path = repo_root / relative_path
+        if not full_path.is_file() or full_path.stat().st_size == 0:
+            findings.append(f"work-packages required file is missing or empty: {relative_path}")
+    if findings:
+        return findings
+
+    hooks_manifest = load_json(HOOKS_MANIFEST_PATH, repo_root)
+    hooks_obj = hooks_manifest.get("hooks")
+    session_start = hooks_obj.get("SessionStart") if isinstance(hooks_obj, dict) else None
+    if not isinstance(session_start, list) or not session_start:
+        findings.append(f"{HOOKS_MANIFEST_PATH}: missing hooks.SessionStart array")
+    else:
+        entry = session_start[0] if isinstance(session_start[0], dict) else {}
+        matcher = str(entry.get("matcher", ""))
+        for required_event in ("startup", "compact"):
+            if required_event not in matcher:
+                findings.append(
+                    f"{HOOKS_MANIFEST_PATH}: SessionStart matcher must cover '{required_event}'"
+                )
+        inner_hooks = entry.get("hooks")
+        command = (
+            inner_hooks[0].get("command", "")
+            if isinstance(inner_hooks, list) and inner_hooks and isinstance(inner_hooks[0], dict)
+            else ""
+        )
+        if "hooks/session-start.mjs" not in str(command):
+            findings.append(
+                f"{HOOKS_MANIFEST_PATH}: SessionStart command must invoke hooks/session-start.mjs"
+            )
+
+    wp_template = (repo_root / WORK_PACKAGES_TEMPLATE_PATH).read_text(encoding="utf-8")
+    if "work_packages:" not in wp_template or "human_gate:" not in wp_template:
+        findings.append(
+            f"{WORK_PACKAGES_TEMPLATE_PATH}: template must declare work_packages and human_gate"
+        )
+
+    hd_template = (repo_root / HUMAN_DEPS_TEMPLATE_PATH).read_text(encoding="utf-8")
+    if "Unblock-with" not in hd_template or "HD-01" not in hd_template:
+        findings.append(
+            f"{HUMAN_DEPS_TEMPLATE_PATH}: template must include HD-01 and Unblock-with column"
+        )
+    return findings
+
+
 def _require_mapping(value: object, context: str) -> dict[str, object]:
     """Narrow untrusted JSON to a string-keyed mapping at the parse boundary."""
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
@@ -1345,6 +1406,7 @@ def run_checks(repo_root: Path) -> list[str]:
         check_adr_exists,
         check_swe_loop_contract,
         check_diagram_loop_package,
+        check_work_packages_contract,
         check_canonical_diagrams,
     ):
         try:

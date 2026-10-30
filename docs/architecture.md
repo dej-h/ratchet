@@ -2,16 +2,22 @@
 
 Ratchet ships one plugin tree to Claude Code and Codex. `swe-loop` governs
 software delivery and keeps repository diagrams on the existing Mermaid path.
-`diagram-loop` governs explicitly requested publication visuals and stores its
-run state and outputs outside the target repository.
+`work-packages` and the `SessionStart` hook (`hooks/session-start.mjs`) provide
+an always-on `.ratchet/` work-package DAG and `Unblock-with` dark-launch ledger
+across multi-session and part-time work. `diagram-loop` governs explicitly
+requested publication visuals and stores its run state and outputs outside the
+target repository.
 
 ```mermaid
 graph LR
     User(["👤 User"])
+    RatchetDir[(".ratchet/work-packages.yaml")]
     RunState[("External run state")]
     Outputs[("Reviewed media")]
 
     subgraph plugin["Ratchet plugin"]
+        Hook["SessionStart hook"]
+        WP["work-packages skill"]
         Swe["swe-loop skill"]
         Mermaid["Mermaid guide"]
         Diagram["diagram-loop skill"]
@@ -19,6 +25,9 @@ graph LR
         Renderer["Remotion renderer"]
     end
 
+    Hook -.->|"brief active + ready WPs"| RatchetDir
+    User -.->|"multi-PR lanes"| WP
+    WP -->|"maintain DAG + HD-xx"| RatchetDir
     User -.->|"software delivery"| Swe
     Swe -->|"ADR and PR diagrams"| Mermaid
     User -.->|"explicit premium request"| Diagram
