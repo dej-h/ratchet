@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -271,10 +272,51 @@ function isDependencyDone(depStatus) {
 }
 
 /**
+ * Extract all `#<number>` references mentioned in `.ratchet/` files.
+ */
+export function extractReferencedNumbers(yamlText, hdText = '') {
+  const refs = new Set();
+  const combined = `${yamlText}\n${hdText}`;
+  for (const match of combined.matchAll(/#(\d+)\b/g)) {
+    refs.add(Number(match[1]));
+  }
+  return refs;
+}
+
+function fetchOpenGitHubIssues(repoRoot) {
+  if (process.env.RATCHET_SKIP_GH_ISSUES === '1') {
+    return [];
+  }
+  if (process.env.RATCHET_MOCK_GH_ISSUES_JSON) {
+    try {
+      return JSON.parse(process.env.RATCHET_MOCK_GH_ISSUES_JSON);
+    } catch {
+      return [];
+    }
+  }
+  try {
+    const raw = execFileSync(
+      'gh',
+      ['issue', 'list', '--state', 'open', '--limit', '50', '--json', 'number,title'],
+      { cwd: repoRoot, encoding: 'utf8', timeout: 2500, stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Build the compact `<ratchet-work-packages>` briefing injected at session start.
  */
-export function buildBriefing(ratchetDir, workPackages, humanDeps) {
-  if (!workPackages.length) {
+export function buildBriefing(
+  ratchetDir,
+  workPackages,
+  humanDeps,
+  untrackedIssues = []
+) {
+  if (!workPackages.length && !untrackedIssues.length) {
     return '';
   }
   const doneIds = new Set(
@@ -294,6 +336,15 @@ export function buildBriefing(ratchetDir, workPackages, humanDeps) {
     '<ratchet-work-packages>',
     `Repository work-package ledger loaded from ${path.join(ratchetDir, WORK_PACKAGES_FILE)} (${doneIds.size}/${workPackages.length} done).`,
   ];
+
+  if (untrackedIssues.length) {
+    lines.push(
+      'Untracked Open GitHub Issues (not yet in .ratchet/work-packages.yaml; triage into a lane when starting work):'
+    );
+    for (const issue of untrackedIssues) {
+      lines.push(`  - #${issue.number}: ${issue.title}`);
+    }
+  }
 
   if (active.length) {
     lines.push('Active / In Review:');
@@ -353,7 +404,13 @@ export function runSessionStart(startDir) {
   const hdText = fs.existsSync(hdPath) ? fs.readFileSync(hdPath, 'utf8') : '';
   const workPackages = parseWorkPackages(yamlText);
   const humanDeps = parseHumanDependencies(hdText);
-  return buildBriefing(ratchetDir, workPackages, humanDeps);
+  const referencedNumbers = extractReferencedNumbers(yamlText, hdText);
+  const openIssues = fetchOpenGitHubIssues(path.dirname(ratchetDir));
+  const untrackedIssues = openIssues.filter(
+    (issue) =>
+      typeof issue?.number === 'number' && !referencedNumbers.has(issue.number)
+  );
+  return buildBriefing(ratchetDir, workPackages, humanDeps, untrackedIssues);
 }
 
 const isMain =

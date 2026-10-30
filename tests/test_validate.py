@@ -995,6 +995,36 @@ class TestWorkPackagesContract:
             in res.stdout
         )
 
+    def test_session_start_surfaces_untracked_github_issues(
+        self, tmp_path: Path
+    ) -> None:
+        ratchet_dir = tmp_path / ".ratchet"
+        ratchet_dir.mkdir()
+        (ratchet_dir / "work-packages.yaml").write_text(
+            "work_packages:\n"
+            "  - { id: WP-1.1, lane: core, title: Existing issue, ref: \"#10\", depends_on: [], blocked_by: [], human_gate: false, status: todo, owner: null }\n"
+        )
+        script = PROJECT_ROOT / "hooks" / "session-start.mjs"
+        env = {
+            **subprocess.os.environ,
+            "RATCHET_MOCK_GH_ISSUES_JSON": json.dumps(
+                [
+                    {"number": 10, "title": "Already tracked issue"},
+                    {"number": 99, "title": "Brand new untracked GitHub issue"},
+                ]
+            ),
+        }
+        res = subprocess.run(
+            ["node", str(script), str(tmp_path)],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True,
+        )
+        assert "Untracked Open GitHub Issues" in res.stdout
+        assert "#99: Brand new untracked GitHub issue" in res.stdout
+        assert "#10: Already tracked issue" not in res.stdout
+
     def test_pre_tool_use_allows_git_push_and_blocks_gh_pr_create_without_wp_update(
         self, tmp_path: Path
     ) -> None:
