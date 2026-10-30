@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "ratchet",
-      "description": "Phase-gated SWE delivery with an explicitly invoked premium diagram workflow. Includes swe-loop, diagram-loop, and the write-as-dejan writing-voice skill.",
+      "description": "Phase-gated SWE delivery with an explicitly invoked premium diagram workflow. Includes swe-loop, diagram-loop, and the writing-house-style skill.",
       "source": "./",
       "version": "0.4.0",
       "category": "productivity"

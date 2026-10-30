@@ -44,7 +44,7 @@ state file must always show where the work stands.
    commands (`uv add <pkg>`, `npm install <pkg>`) so the registry — not model
    memory — picks the version. When writing code against a library, verify
    current API from its docs, never from internal knowledge alone.
-5. **Prose artifacts use the write-as-dejan skill** (ADRs, summaries, PR
+5. **Prose artifacts use the writing-house-style skill** (ADRs, summaries, PR
    descriptions, READMEs, docstrings): factual, primary-source-grounded,
    written for a reader who has not seen the session, zero marketing tone or
    dramatization.
@@ -225,7 +225,7 @@ for a premium, animated, publication-quality, website, hero, or explainer
 visual in one of its five supported archetypes; `swe-loop` never invokes it
 automatically.
 
-Skills: grilling (design interview), write-as-dejan (prose),
+Skills: grilling (design interview), writing-house-style (prose),
 graphify (codebase understanding),
 deep-research / microsoft-docs (when the decision needs external grounding).
 
@@ -401,7 +401,7 @@ evidence; spec drift is zero, or the ADR was amended and the user informed
 ### Phase 7 — Deliver & close
 
 Do:
-- Write the summary via write-as-dejan: what changed, manual testing if
+- Write the summary via writing-house-style: what changed, manual testing if
   performed, architectural changes if any, review guide per task (S/M classes).
   Reference the ADR; include the right diagrams per
   [mermaid-guide.md](mermaid-guide.md). Keep automated commands, pass counts,
@@ -454,7 +454,7 @@ ordering explicitly stated by a profile, can:
 
 ## Delegation note
 
-Skills named in this loop (grilling, verify, code-review, write-as-dejan,
+Skills named in this loop (grilling, verify, code-review, writing-house-style,
 revise-claude-md, frontend-quality, graphify) are always invoked **live** via
 the Skill tool. The `reference/` folder contains stale, version-stamped
 transcripts of built-in skills for human reading and upgrade-diffing only —
