@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 (2026-11-02)
+
+- Added `work-packages` skill and `.ratchet/` templates (`work-packages.yaml`,
+  `human-dependencies.md`) with `SessionStart` and `PreToolUse` hooks for
+  multi-session dark-launched delivery, untracked GitHub issue detection, active
+  `swe-loop` cursor recovery, `workspace`-mode commit blocking, and `gh pr create`
+  gating.
+- Added `consolidate` skill and Phase 4 pre-review consolidation pass to remove
+  prompt echoing, transition narration, and transitional scaffolding before
+  review.
+- Expanded `test-plan.md` and Phase 4/5/6 contracts to require defect, level,
+  boundary, independent oracle, and failure proof per test.
+- Added Phase 0 product/parity inventory for rebuilds and upstream preflight for
+  external open-source contributions.
+- Replaced `write-as-dejan` with `writing-house-style` and register-specific
+  references (`documentation.md`, `pr-descriptions.md`, `messages.md`).
+- Added standalone `grill-me` and `grilling` skills.
+
 ## 0.4.0 (2026-09-03)
 
 - Added the explicitly invoked `diagram-loop` skill for phase-gated architecture

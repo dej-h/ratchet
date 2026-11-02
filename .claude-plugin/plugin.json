@@ -1,7 +1,7 @@
 {
   "name": "ratchet",
-  "description": "Phase-gated SWE delivery and explicitly invoked premium diagram production for coding agents. Ships with swe-loop, diagram-loop, and the writing-house-style skill.",
-  "version": "0.4.0",
+  "description": "Phase-gated SWE delivery, work-package tracking, diff consolidation, and deterministic diagram compilation for Claude Code and Codex.",
+  "version": "0.5.0",
   "author": {
     "name": "Dejan Honderd",
     "url": "https://github.com/dej-h"
