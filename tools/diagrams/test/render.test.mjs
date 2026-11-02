@@ -69,9 +69,9 @@ test("registry exposes the five canonical examples", async () => {
     [
       "platform-threat-model",
       "swe-loop",
-      "voortman-fullstack-review",
+      "platform-fullstack-review",
       "cache-lookup-icons",
-      "voortman-fullstack-deploy-icons",
+      "platform-fullstack-deploy-icons",
     ],
   );
 });
