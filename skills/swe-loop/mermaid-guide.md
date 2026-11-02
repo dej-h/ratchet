@@ -219,19 +219,18 @@ explicit color at all — confirmed legible in both renders.
 
 ### Canonical infrastructure example: automated full-stack review
 
-This example is grounded in `voortman-ai-sandbox/infrastructure` at commit
-`99baa4b2af97285cc50b3afaef4abe9bbd2ae12c`, specifically the relay,
-`review-listener.yml`, and deterministic result publisher. It shows the
-automated full-stack route only. Manual `workflow_dispatch` deliberately
+This example models an event-driven full-stack review pipeline: the webhook
+relay, `review-listener.yml`, and the deterministic result publisher. It shows
+the automated full-stack route only. Manual `workflow_dispatch` deliberately
 skips the branch-policy gate, so it is outside this scenario.
 
 Every palette class has a real job here: the webhook is transport; dispatch
 and pending status are protocol messages; relay, branch, security,
 full-stack, and AI decisions are gates; failed review is blocked; passing
 review is success. Source:
-[voortman-fullstack-review.mmd](../../docs/diagrams/voortman-fullstack-review.mmd).
+[platform-fullstack-review.mmd](../../docs/diagrams/platform-fullstack-review.mmd).
 
-<!-- canonical-mermaid: voortman-fullstack-review -->
+<!-- canonical-mermaid: platform-fullstack-review -->
 ```mermaid
 graph TB
     Webhook["PR webhook"]
@@ -369,17 +368,16 @@ above (numbered edges, micro-copy) together. Source:
 </picture>
 
 **Canonical infrastructure icon example:** the fail-before-update full-stack
-deployment path from `voortman-ai-sandbox/infrastructure` at commit
-`99baa4b2af97285cc50b3afaef4abe9bbd2ae12c`. The exact tested SHA becomes a
+deployment path. The exact tested SHA becomes a
 GHCR digest, that digest is imported into ACR without rebuilding, migrations
 run against the new digest while the current app image stays active, and the
 app rolls forward only after migration success. Source:
-[voortman-fullstack-deploy-icons.mmd](../../docs/diagrams/voortman-fullstack-deploy-icons.mmd).
+[platform-fullstack-deploy-icons.mmd](../../docs/diagrams/platform-fullstack-deploy-icons.mmd).
 
-<!-- canonical-mermaid: voortman-fullstack-deploy-icons -->
+<!-- canonical-mermaid: platform-fullstack-deploy-icons -->
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../../docs/diagrams/voortman-fullstack-deploy-icons-dark.svg">
-  <img src="../../docs/diagrams/voortman-fullstack-deploy-icons-light.svg" alt="Numbered full-stack deployment flow from a GitHub main push through relay, tested digest, ACR import, migration and health gates to either failed or running status">
+  <source media="(prefers-color-scheme: dark)" srcset="../../docs/diagrams/platform-fullstack-deploy-icons-dark.svg">
+  <img src="../../docs/diagrams/platform-fullstack-deploy-icons-light.svg" alt="Numbered full-stack deployment flow from a GitHub main push through relay, tested digest, ACR import, migration and health gates to either failed or running status">
 </picture>
 
 The renderer contract is locked by `tools/diagrams/.node-version` and

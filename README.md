@@ -112,5 +112,5 @@ and PR.
 
 ## Status
 
-Private, 0.4.0. This repo is the workflow implementation itself, dogfooded to
+0.4.0. This repo is the workflow implementation itself, dogfooded to
 build itself: its own first feature went through the loop it implements.
