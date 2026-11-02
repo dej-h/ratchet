@@ -12,7 +12,9 @@ Ships as one plugin tree read directly by both harnesses via the
   with two human gates (Gate A: ADR + EARS acceptance criteria; Gate B: reviewed
   diff/PR), S/M review-effort commit budgeting, reuse inventory, persisted
   pre-code test plans (`test-plan.md`), pre-review consolidation, and
-  fresh-context review.
+  fresh-context review. Large branch-mode loops use
+  [native GitHub PR stacks](skills/swe-loop/native-stacks.md) for dependent
+  delivery slices, with separate stacks and linked prerequisites across repos.
 - **`work-packages`** (`skills/work-packages/SKILL.md`): always-on multi-session
   DAG (`.ratchet/work-packages.yaml`) and external blocker ledger
   (`.ratchet/human-dependencies.md` with `Unblock-with` dark-launch defaults).
