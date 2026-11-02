@@ -3,12 +3,12 @@
   "plugins": [
     {
       "name": "ratchet",
-      "description": "Phase-gated SWE delivery with an explicitly invoked premium diagram workflow. Includes swe-loop, diagram-loop, and the writing-house-style skill.",
+      "description": "Phase-gated SWE delivery, work-package tracking, diff consolidation, and deterministic diagram compilation for Claude Code and Codex.",
       "source": {
         "source": "local",
         "path": "./"
       },
-      "version": "0.4.0",
+      "version": "0.5.0",
       "category": "productivity"
     }
   ]
