@@ -60,6 +60,11 @@ Bootstrap by copying
    - opt-in infrastructure/runtime slices (`human_gate: false` or `true`),
    - live test-app/runbook verification on `main` (`human_gate: true`),
    - final user-facing activation (`human_gate: false`).
+3. On GitHub, publish dependent code slices in the same repository as a
+   native PR stack. Follow [native stack delivery](../swe-loop/native-stacks.md)
+   for branch maintenance and release order. Keep each intermediate slice
+   dark-launchable, and link cross-repository prerequisites through the DAG
+   and PR descriptions; a GitHub stack cannot span repositories.
 
 ## Session lifecycle
 

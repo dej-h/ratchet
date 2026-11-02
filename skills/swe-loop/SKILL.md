@@ -36,7 +36,9 @@ state file must always show where the work stands.
    checkbox, or generated artifact is evidence, never inferred human approval.
 3. **No irreversible or production-affecting commands.** No deploys,
    `terraform apply`/`destroy`, `az` mutations on shared resources,
-   force-pushes, or non-local DB changes — local dev is the sandbox. If a
+   force-pushes (except explicitly authorized, leased stack maintenance in
+   [native-stacks.md](native-stacks.md)), or non-local DB changes — local dev
+   is the sandbox. If a
    phase appears to need one, stop and ask. (Hard enforcement belongs in
    settings.json deny rules; this skill is the instruction layer, not the
    only defense.)
@@ -68,7 +70,11 @@ happen.
   branch** — usually `main`, but respect the repo's convention (check the
   default branch; pre-onboarding platform repos use `develop`) unless the
   user states otherwise. The Phase 7 summary becomes the PR description,
-  diagrams included.
+  diagrams included. For a large loop with dependent changes across several
+  components or systems, default to a native GitHub PR stack per repository;
+  read [native-stacks.md](native-stacks.md) before designing the delivery
+  slices. The bottom PR targets the integration branch, and each higher PR
+  targets the branch below it. Gate B covers the linked delivery set.
 - **workspace** — working directly in the user's live checkout where he is
   also coding. **Never commit or push.** Keep per-task changes visible in the
   working tree: staged = task complete, unstaged = in progress, so he can
@@ -200,6 +206,10 @@ Do:
   primary sources (library docs, MS docs, deep-research) when the decision
   warrants it.
 - Record the chosen option and why, per the ADR template.
+- For a multi-PR branch-mode delivery, include repository ownership, proposed
+  slice boundaries, dependency and merge order, and live release gates in
+  the ADR. Settle permission to publish and maintain the loop-owned stack
+  branches at Gate A; stacking does not authorize merging or deployment.
 - Write **acceptance criteria in EARS notation** — `WHEN <condition> THE
   SYSTEM SHALL <behavior>` — one per observable behavior the change must
   deliver. These become the spine of the Phase 4 test plan and the Phase 6
@@ -258,6 +268,9 @@ Do:
   that produce it as `generated` in plan.md so the reviewer knows to skip.
 - Order tasks by dependency; write `plan.md`; set only task IDs, statuses, and
   the current pointer in `state.md`.
+- For stacked delivery, map tasks to whole-feature PR slices in `plan.md`.
+  Record each repository, branch, base, work-package ID when present, and
+  cross-repository prerequisites. Keep unrelated dependency chains separate.
 - **Analyze check — the pre-implementation drift gate.** Read-only
   cross-artifact check (fresh-context subagent when the plan is nontrivial):
   every ADR decision and every EARS criterion maps to at least one task;
@@ -414,13 +427,17 @@ Do:
 - **GATE B, per working mode:**
   - *branch* — open a PR against the repo's integration branch (unless the
     user directed otherwise); the summary is the PR description. Link the PR
-    in chat.
+    in chat. For stacked delivery, publish the slices as a native GitHub
+    stack using [native-stacks.md](native-stacks.md), and link the ordered
+    PRs, cross-repository prerequisites, and release gates in the handoff.
   - *workspace* — leave the diff reviewable in the working tree (staged =
     done) and write the summary to `pr-description.md` in the loop directory,
     exactly as it would read on a PR. Point the user at both.
 - Confirm the delivered revision still equals the Phase 5 reviewed revision.
   If it does not, return to Phase 5 before creating or updating the Gate B
-  review surface.
+  review surface. For a stack, verify every delivered branch against its
+  reviewed revision, recording the full set in `plan.md` or `evidence.md`
+  and referencing it from `state.md`.
 - After approval only: update durable learnings — repo CLAUDE.md/rules and
   memory (revise-claude-md skill) — so the next loop starts smarter. Mark
   `state.md` complete and compact it one final time.
