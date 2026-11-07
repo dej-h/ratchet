@@ -81,7 +81,7 @@ When a repository contains `.ratchet/work-packages.yaml`, the `SessionStart` and
 claude plugin validate .
 uv run tools/validate.py
 uv run pytest -q
-cd skills/frontend-quality/checks && npm ci && npx playwright install chromium && npm test
+cd skills/frontend-quality/checks && npm ci && npx playwright install chromium && npm test && npm run test:launcher
 cd ../../..
 cd tools/diagrams && npm ci && npm test && npm run diagrams:check
 cd ../../skills/diagram-loop/renderer && npm ci && npm run typecheck && npm test && npm run test:media

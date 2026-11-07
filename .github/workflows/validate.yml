@@ -88,6 +88,13 @@ jobs:
           RATCHET_FRONTEND_TEST_ARTIFACTS: ${{ runner.temp }}/frontend-quality-evidence
         run: npm test
 
+      - name: Smoke-test frontend checks from a read-only plugin tree
+        env:
+          RATCHET_FRONTEND_LAUNCHER_ARTIFACTS: ${{ runner.temp }}/frontend-quality-evidence/launcher
+        run: |
+          chmod -R a-w skills/frontend-quality
+          npm --prefix skills/frontend-quality/checks run test:launcher
+
       - name: Upload frontend evidence after a failing contract test
         if: failure()
         uses: actions/upload-artifact@v4

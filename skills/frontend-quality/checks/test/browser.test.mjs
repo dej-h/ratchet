@@ -24,9 +24,11 @@ after(async () => {
 
 test("parallel route entry passes both cold runs with screenshots and redacted request evidence", async () => {
   const output = path.join(directory, "catalog");
-  const report = await audit(fixtureConfig(baseURL, "catalog"), output);
+  const config = fixtureConfig(baseURL, "catalog");
+  config.viewports.push({ width: 1280, height: 800 });
+  const report = await audit(config, output);
   assert.equal(report.status, "PASS", JSON.stringify(report));
-  assert.equal(report.runs.length, 2);
+  assert.equal(report.runs.length, 4);
   for (const run of report.runs) {
     assert.equal((await readFile(path.join(output, run.screenshot))).subarray(1, 4).toString(), "PNG");
     assert.deepEqual(run.requests.map((request) => request.resource).sort(), ["activity", "catalog"]);
@@ -35,6 +37,27 @@ test("parallel route entry passes both cold runs with screenshots and redacted r
   const saved = await readFile(path.join(output, "report.json"), "utf8");
   assert.equal(saved.includes("limit=30"), false);
   assert.equal(saved.includes("http://"), false);
+});
+
+test("failed interactions retain their diagnostics and do not skip independent screen checks", async () => {
+  const config = fixtureConfig(baseURL, "accessible-name");
+  config.scenarios[0].exercise = async ({ page }) => {
+    await page.evaluate(() => { document.body.style.width = "2000px"; });
+    assert.equal(await page.getByRole("status").textContent(), "Catalog unavailable", "Activity recovery must be visible");
+  };
+  const report = await audit(config, path.join(directory, "interaction-failure"));
+  assert.equal(report.status, "FAIL");
+  for (const run of report.runs) {
+    assert.equal(run.checks.interaction, "FAIL");
+    assert.equal(run.checks.overflow, "FAIL");
+    assert.equal(run.checks.accessibility, "FAIL");
+    assert.equal(run.checks.requests, "PASS");
+    assert.equal(run.checks.screenshot, "PASS");
+    assert.ok(run.failures.some((failure) => failure.includes("Activity recovery must be visible")
+      && failure.includes("2 items") && failure.includes("Catalog unavailable")));
+    assert.ok(run.failures.includes("Page overflows horizontally"));
+    assert.ok(run.accessibility.some((violation) => violation.id === "button-name"));
+  }
 });
 
 test("expected HTTP failures can verify recovery without masking application errors", async () => {
@@ -59,6 +82,44 @@ test("declaring a font does not pass when the browser actually renders a fallbac
   const report = await audit(config, path.join(directory, "font"));
   assert.equal(report.status, "FAIL");
   assert.ok(report.runs.every((run) => run.failures.some((failure) => failure.includes("Expected rendered font"))));
+});
+
+test("identical resource paths on different origins remain distinct in the browser", async () => {
+  const other = await startFixture();
+  try {
+    const config = {
+      baseURL, apiOrigins: [baseURL, other.baseURL], viewports: [{ width: 390, height: 844 }],
+      scenarios: [{ name: "two-origins", path: `/two-origins?other=${encodeURIComponent(other.baseURL)}`, ready: "main[data-ready]",
+        resources: [
+          { id: "billing", origin: baseURL, pathname: "/api/profile" },
+          { id: "crm", origin: other.baseURL, pathname: "/api/profile" },
+        ],
+        async exercise({ page }) { assert.equal(await page.getByRole("heading").textContent(), "Accounts"); },
+      }],
+    };
+    const report = await audit(config, path.join(directory, "two-origins"));
+    assert.equal(report.status, "PASS", JSON.stringify(report));
+    for (const run of report.runs) {
+      assert.deepEqual(run.requests.map(({ resource }) => resource).sort(), ["billing", "crm"]);
+    }
+  } finally { await other.close(); }
+});
+
+test("interaction-triggered reads have explicit phases instead of being mistaken for entry waterfalls", async () => {
+  const config = fixtureConfig(baseURL, "catalog");
+  config.scenarios[0].resources.push({ id: "details", pathname: "/api/details", phase: "inspect" });
+  config.scenarios[0].exercise = async ({ page, markPhase }) => {
+    markPhase("inspect");
+    assert.deepEqual(await page.evaluate(async () => (await fetch("/api/details")).json()), []);
+  };
+  const report = await audit(config, path.join(directory, "interaction-phase"));
+  assert.equal(report.status, "PASS", JSON.stringify(report));
+  config.scenarios[0].exercise = async ({ page }) => {
+    await page.evaluate(async () => (await fetch("/api/details")).json());
+  };
+  const unmarked = await audit(config, path.join(directory, "unmarked-phase"));
+  assert.equal(unmarked.status, "FAIL");
+  assert.ok(unmarked.runs.every((run) => run.failures.some((failure) => failure.includes("before phase inspect"))));
 });
 
 test("browser defects fail their intended checks under the same route contract", async (suite) => {

@@ -101,7 +101,8 @@ unknown dependencies and a declared depth above `maxDepth` (default 2). A root
 request has depth 1. Every resource must be observed, with canonical query
 parameters and at most its configured request count. Undeclared API calls fail.
 
-Under throttling, resources sharing the same prerequisites must overlap: the
+Under throttling, resources in the same entry/interaction phase that share
+the same prerequisites must overlap: the
 last must start at least `minOverlapMs` (default 25 ms) before the first finishes.
 Throttling gives independent requests room to overlap without accepting a small
 sequential gap as scheduling noise. This is an observed concurrency check against a declared

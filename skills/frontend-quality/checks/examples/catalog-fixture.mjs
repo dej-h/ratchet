@@ -49,8 +49,17 @@ export async function startFixture() {
   const server = createServer((request, response) => {
     if (request.url.startsWith("/api/")) {
       response.writeHead(state.recovery && request.url.startsWith("/api/catalog") ? 503 : 200,
-        { "content-type": "application/json" });
+        { "content-type": "application/json", "access-control-allow-origin": "*" });
       response.end("[]");
+    } else if (request.url.startsWith("/two-origins?")) {
+      const other = new URL(request.url, "http://fixture.test").searchParams.get("other");
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end(`<!doctype html><html lang="en"><head><title>Accounts</title>
+        <link rel="icon" href="data:,"></head><body><main><h1>Accounts</h1><script>
+        Promise.all([fetch('/api/profile'), fetch(${JSON.stringify(`${other}/api/profile`)})])
+        .then(async responses => { await Promise.all(responses.map(r => r.json()));
+          document.querySelector('main').dataset.ready = 'true'; });
+        </script></main></body></html>`);
     } else {
       response.writeHead(200, { "content-type": "text/html" });
       response.end(screen(request.url.slice(1), state));

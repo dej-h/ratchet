@@ -46,7 +46,20 @@ test("request evidence rejects serialization, duplication, missing and unfinishe
 });
 
 test("canonical parameters include repeated values without depending on parameter name ordering", () => {
-  const resource = { pathname: "/api/catalog", method: "GET", query: { limit: "30", tag: ["a", "b"] } };
+  const resource = { origin: "https://example.test", pathname: "/api/catalog", method: "GET", query: { limit: "30", tag: ["a", "b"] } };
   assert.equal(matchesResource(resource, new URL("https://example.test/api/catalog?tag=a&limit=30&tag=b"), "GET"), true);
   assert.equal(matchesResource(resource, new URL("https://example.test/api/catalog?tag=a&limit=31&tag=b"), "GET"), false);
+});
+
+test("resource identity distinguishes API origins and rejects ambiguous declarations", () => {
+  const config = base([
+    { id: "billing", pathname: "/api/profile", origin: "https://billing.example" },
+    { id: "crm", pathname: "/api/profile", origin: "https://crm.example" },
+  ]);
+  config.apiOrigins = ["https://billing.example", "https://crm.example"];
+  const [billing, crm] = normalizeConfig(config).scenarios[0].resources;
+  assert.equal(matchesResource(billing, new URL("https://billing.example/api/profile"), "GET"), true);
+  assert.equal(matchesResource(crm, new URL("https://billing.example/api/profile"), "GET"), false);
+  delete config.scenarios[0].resources[0].origin;
+  assert.throws(() => normalizeConfig(config), /declare it explicitly/);
 });

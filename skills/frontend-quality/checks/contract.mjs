@@ -9,7 +9,7 @@ function queryEntries(query = {}) {
 }
 
 export function matchesResource(resource, url, method) {
-  if (resource.pathname !== url.pathname || resource.method !== method) return false;
+  if (resource.origin !== url.origin || resource.pathname !== url.pathname || resource.method !== method) return false;
   const actual = Object.fromEntries([...new Set(url.searchParams.keys())]
     .map((key) => [key, url.searchParams.getAll(key)]));
   return JSON.stringify(queryEntries(actual)) === JSON.stringify(queryEntries(resource.query));
@@ -44,7 +44,9 @@ export function normalizeConfig(input) {
   }
   requireCondition(Array.isArray(config.apiOrigins) && config.apiOrigins.length > 0, "Declare API origins");
   for (const origin of config.apiOrigins) {
-    requireCondition(new URL(origin).origin === origin, "apiOrigins must contain exact origins");
+    const parsed = new URL(origin);
+    requireCondition(parsed.origin === origin && ["http:", "https:"].includes(parsed.protocol),
+      "apiOrigins must contain exact HTTP(S) origins");
   }
   requireCondition(Array.isArray(config.apiPrefixes) && config.apiPrefixes.length > 0
     && config.apiPrefixes.every((prefix) => typeof prefix === "string" && prefix.startsWith("/")),
@@ -72,12 +74,16 @@ export function normalizeConfig(input) {
     const ids = new Set();
     const signatures = new Set();
     normalized.resources = scenario.resources.map((resource) => {
-      const item = { method: "GET", query: {}, after: [], maxRequests: 1, ...resource };
+      const item = { method: "GET", query: {}, after: [], maxRequests: 1, phase: "entry",
+        origin: config.apiOrigins.length === 1 ? config.apiOrigins[0] : undefined, ...resource };
       requireCondition(typeof item.id === "string" && item.id.trim() && !ids.has(item.id), "Resource IDs must be unique");
       ids.add(item.id);
+      requireCondition(typeof item.phase === "string" && item.phase.trim(), "Resource phases must be named");
       requireCondition(typeof item.pathname === "string" && item.pathname.startsWith("/")
         && !item.pathname.includes("?") && !item.pathname.includes("#"), "Resources need a pathname without query or fragment");
       requireCondition(typeof item.method === "string" && /^[A-Z]+$/.test(item.method), "Resource methods must be uppercase");
+      requireCondition(config.apiOrigins.includes(item.origin),
+        "Each resource needs a configured origin; declare it explicitly when multiple API origins are measured");
       requireCondition(item.query && typeof item.query === "object" && !Array.isArray(item.query)
         && Object.values(item.query).every((value) => typeof value === "string"
           || (Array.isArray(value) && value.length > 0 && value.every((part) => typeof part === "string"))),
@@ -90,7 +96,7 @@ export function normalizeConfig(input) {
       "statuses must list expected HTTP response codes");
       requireCondition(config.apiPrefixes.some((prefix) => item.pathname.startsWith(prefix)),
         "Every resource must fall within apiPrefixes");
-      const signature = JSON.stringify([item.method, item.pathname, queryEntries(item.query)]);
+      const signature = JSON.stringify([item.origin, item.method, item.pathname, queryEntries(item.query)]);
       requireCondition(!signatures.has(signature), "Resource matches must be distinct");
       signatures.add(signature);
       return item;
@@ -141,7 +147,7 @@ export function checkRequests(scenario, requests) {
   }
   const groups = new Map();
   for (const resource of scenario.resources) {
-    const key = JSON.stringify([...resource.after].sort());
+    const key = JSON.stringify([resource.phase, [...resource.after].sort()]);
     if (!groups.has(key)) groups.set(key, []);
     const request = first.get(resource.id);
     if (request?.endMs !== null && request?.endMs !== undefined) groups.get(key).push(request);

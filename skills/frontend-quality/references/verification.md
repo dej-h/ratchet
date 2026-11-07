@@ -60,6 +60,16 @@ defaults to `after: []`, `method: "GET"`, and `maxRequests: 1`. Query parameters
 match exactly, including repeated values supplied as arrays. Declare separate
 resources for intentionally different parameter sets. All matching origins and
 API prefixes are checked; do not omit a cross-origin API to make a route pass.
+When measuring multiple API origins, each resource must declare its exact
+`origin` from `apiOrigins`. Identical paths on different services are distinct
+resources, and a request to the wrong origin cannot satisfy the contract.
+
+For a read that is intentionally triggered by a later user action, declare a
+named resource `phase` (the default is `"entry"`) and call `markPhase(name)`
+from `exercise` immediately before that action. Resources are checked for
+overlap within their phase and prerequisites; a later interaction is not an
+entry waterfall. An unmarked phase fails. Keep requests belonging to the same
+action together rather than giving each request its own phase to hide a chain.
 
 Add separate scenarios for affected empty, filtered, loading and error states,
 using controlled API responses in `prepare` when needed. `prepare` runs before
@@ -80,9 +90,15 @@ inspects fonts used to render glyphs, not just computed `font-family` strings.
 The command exits 0 only when every scenario, viewport and pass succeeds; 1 is
 a quality failure and 2 is invalid configuration or unavailable tooling. It
 writes `report.json` plus a screenshot per measured run. The report records
-request IDs, methods, statuses and timings, not headers, bodies, query values
-or authentication state. Store artifacts according to the target application's
+per-probe outcomes, assertion diagnostics, console errors and request IDs,
+methods, statuses and timings. Request metadata excludes headers, bodies, query
+values and authentication state. Assertion/console messages and screenshots may
+contain application content. Store artifacts according to the target application's
 existing test-data policy.
+
+A failed interaction does not skip the independent overflow, accessibility,
+font, screenshot and request probes. Each probe has its own outcome; a probe
+that could not run is never represented by an empty violation list or a pass.
 
 Review screenshots for hierarchy, readable content, deliberate emphasis,
 cohesion and preservation of approved elements. Compare related pages at the

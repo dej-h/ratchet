@@ -154,6 +154,9 @@ agreement presented at Gate A. Invoke `ratchet:grilling` directly; the
 - Ground the interview in the user's brief, existing code, relevant documents,
   and decisions already settled in this conversation. Investigate facts before
   asking the user to decide; bring recommendations and concrete trade-offs.
+- When any part of the work affects the frontend, use the sibling
+  [frontend-quality skill](../frontend-quality/SKILL.md) to inform the screen,
+  state and data-loading acceptance criteria before approving the design.
 - Ask about genuine ambiguity. A small change may need a short session; a
   detailed brief may leave no questions. Do not manufacture questions or repeat
   answered ones to satisfy an interview quota.
