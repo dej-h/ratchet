@@ -6,4 +6,5 @@ __pycache__/
 .pytest_cache/
 tools/diagrams/node_modules/
 skills/diagram-loop/renderer/node_modules/
+skills/frontend-quality/checks/node_modules/
 .DS_Store

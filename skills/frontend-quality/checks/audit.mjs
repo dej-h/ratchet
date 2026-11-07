@@ -1,0 +1,160 @@
+#!/usr/bin/env node
+
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { parseArgs } from "node:util";
+import { pathToFileURL } from "node:url";
+import { chromium } from "playwright";
+import AxeBuilder from "@axe-core/playwright";
+import { checkRequests, matchesResource, normalizeConfig } from "./contract.mjs";
+
+async function inspectRun(browser, config, scenario, viewport, pass, index, output) {
+  const context = await browser.newContext({ viewport, serviceWorkers: "block" });
+  const page = await context.newPage();
+  page.setDefaultTimeout(config.timeoutMs);
+  const failures = [];
+  const consoleErrors = [];
+  const requests = [];
+  const tracked = new Map();
+  const screenshot = `pass-${pass}-scenario-${index}-${viewport.width}x${viewport.height}.png`;
+  const run = { scenario: scenario.name, viewport, pass, screenshot, requests, failures };
+  try {
+    if (config.prepare) await config.prepare({ context, page, scenario, pass, viewport });
+    const session = await context.newCDPSession(page);
+    await session.send("Network.enable");
+    await session.send("Network.setCacheDisabled", { cacheDisabled: true });
+    await session.send("Network.emulateNetworkConditions", {
+      offline: false, latency: config.latencyMs,
+      downloadThroughput: config.downloadBytesPerSecond,
+      uploadThroughput: config.uploadBytesPerSecond,
+    });
+    const epoch = Date.now();
+    page.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push({ text: message.text(), url: message.location().url });
+    });
+    page.on("pageerror", () => failures.push("Uncaught page error (inspect the application console)"));
+    page.on("request", (request) => {
+      if (!["fetch", "xhr"].includes(request.resourceType())) return;
+      const url = new URL(request.url());
+      if (!config.apiOrigins.includes(url.origin)
+        || !config.apiPrefixes.some((prefix) => url.pathname.startsWith(prefix))) return;
+      const resource = scenario.resources.find((item) => matchesResource(item, url, request.method()));
+      const record = { resource: resource?.id ?? null, method: request.method(), status: null,
+        startMs: Date.now() - epoch, endMs: null, failure: null };
+      requests.push(record);
+      tracked.set(request, record);
+    });
+    page.on("response", (response) => {
+      const record = tracked.get(response.request());
+      if (record) record.status = response.status();
+    });
+    const finish = (request, failed) => {
+      const record = tracked.get(request);
+      if (!record) return;
+      const timing = request.timing();
+      if (timing.startTime > 0 && timing.responseEnd >= 0) {
+        record.startMs = timing.startTime - epoch;
+        record.endMs = record.startMs + timing.responseEnd;
+      } else record.endMs = Date.now() - epoch;
+      if (failed) record.failure = request.failure()?.errorText ?? "request failed";
+    };
+    page.on("requestfinished", (request) => finish(request, false));
+    page.on("requestfailed", (request) => finish(request, true));
+    const response = await page.goto(new URL(scenario.path, config.baseURL).href,
+      { waitUntil: "domcontentloaded", timeout: config.timeoutMs });
+    if (!response || response.status() >= 400) failures.push("Route navigation failed");
+    await page.locator(scenario.ready).waitFor({ state: "visible" });
+    await scenario.exercise({ page, context, pass, viewport });
+    const overflow = await page.evaluate(() =>
+      Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0) > innerWidth + 1);
+    if (overflow) failures.push("Page overflows horizontally");
+    const accessibility = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    run.accessibility = accessibility.violations.map((violation) => ({
+      id: violation.id, impact: violation.impact,
+      targets: violation.nodes.map((node) => node.target),
+    }));
+    for (const violation of run.accessibility) failures.push(`Accessibility: ${violation.id}`);
+    if (scenario.fonts.length) {
+      await page.evaluate(() => document.fonts.ready);
+      await session.send("DOM.enable");
+      await session.send("CSS.enable");
+      const { root } = await session.send("DOM.getDocument");
+      for (const font of scenario.fonts) {
+        const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: font.selector });
+        const rendered = nodeId ? await session.send("CSS.getPlatformFontsForNode", { nodeId }) : { fonts: [] };
+        if (!rendered.fonts.some((item) => item.glyphCount > 0
+          && item.familyName.toLowerCase() === font.family.toLowerCase())) {
+          failures.push(`Expected rendered font ${font.family} at ${font.selector}`);
+        }
+      }
+    }
+  } catch (error) {
+    failures.push(`Scenario did not complete: ${error.name || "Error"}`);
+  } finally {
+    try { await page.screenshot({ path: path.join(output, screenshot), fullPage: true, timeout: config.timeoutMs }); }
+    catch { failures.push("Screenshot capture failed"); }
+    failures.push(...checkRequests(scenario, requests));
+    for (const message of consoleErrors) {
+      const expectedHTTP = message.text.startsWith("Failed to load resource:") && message.url
+        && scenario.resources.some((resource) => resource.statuses?.some((status) => status >= 400)
+          && matchesResource(resource, new URL(message.url), resource.method)
+          && requests.some((request) => request.resource === resource.id
+            && resource.statuses.includes(request.status) && request.status >= 400));
+      if (!expectedHTTP) failures.push("Browser console error (inspect the application console)");
+    }
+    run.declaredDepth = scenario.declaredDepth;
+    run.status = failures.length ? "FAIL" : "PASS";
+    await context.close();
+  }
+  return run;
+}
+
+export async function audit(input, output) {
+  const config = normalizeConfig(input);
+  await mkdir(output, { recursive: true });
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+  });
+  const report = { status: "PASS", runs: [] };
+  try {
+    for (let pass = 1; pass <= config.passes; pass++) {
+      for (const [index, scenario] of config.scenarios.entries()) {
+        for (const viewport of config.viewports) {
+          report.runs.push(await inspectRun(browser, config, scenario, viewport, pass, index, output));
+        }
+      }
+    }
+    if (report.runs.some((run) => run.status === "FAIL")) report.status = "FAIL";
+  } catch (error) {
+    report.status = "BLOCKED";
+    throw error;
+  } finally {
+    await browser.close();
+    await writeFile(path.join(output, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+  }
+  return report;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  let output;
+  try {
+    const { values, positionals } = parseArgs({ allowPositionals: true,
+      options: { output: { type: "string" } } });
+    if (positionals.length !== 1 || !values.output) {
+      throw new Error("Usage: audit.mjs CONFIG.mjs --output DIRECTORY");
+    }
+    output = path.resolve(values.output);
+    const { default: config } = await import(pathToFileURL(path.resolve(positionals[0])).href);
+    const report = await audit(config, output);
+    console.log(`${report.status}: ${report.runs.length} measured runs; ${path.join(output, "report.json")}`);
+    process.exitCode = report.status === "PASS" ? 0 : 1;
+  } catch (error) {
+    if (output) {
+      await mkdir(output, { recursive: true });
+      await writeFile(path.join(output, "report.json"), `${JSON.stringify({ status: "BLOCKED", reason: error.message })}\n`);
+    }
+    console.error(`BLOCKED: ${error.message}`);
+    process.exitCode = 2;
+  }
+}

@@ -10,9 +10,9 @@
   "plugins": [
     {
       "name": "ratchet",
-      "description": "Phase-gated SWE delivery, work-package tracking, diff consolidation, and deterministic diagram compilation for Claude Code and Codex.",
+      "description": "Phase-gated SWE delivery, work-package tracking, frontend quality checks, diff consolidation, and deterministic diagram compilation for Claude Code and Codex.",
       "source": "./",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "category": "productivity"
     }
   ]

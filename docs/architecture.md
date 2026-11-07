@@ -8,6 +8,13 @@ across multi-session and part-time work. `diagram-loop` governs explicitly
 requested publication visuals and stores its run state and outputs outside the
 target repository.
 
+`frontend-quality` owns a framework-neutral UI rubric, data-loading contracts,
+and an isolated Playwright/axe checker. It runs standalone and supplies the
+frontend contract, testing and evidence-review steps within every `swe-loop`
+profile. Its launcher materializes a locked runtime in the user cache so an
+installed plugin can remain read-only. Route-specific assertions and generated
+screenshots/reports belong to the target application's test environment.
+
 ```mermaid
 graph LR
     User(["👤 User"])

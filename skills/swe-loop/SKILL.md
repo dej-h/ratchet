@@ -293,6 +293,10 @@ Do:
   codebase for existing implementations before planning any new one.
 - For each new dependency: confirm it's needed, and that a maintained library
   isn't already doing this better than custom code would.
+- For any frontend surface or data-loading change, load the shipped sibling
+  [frontend-quality skill](../frontend-quality/SKILL.md), regardless of the
+  selected profile. Establish its screen/state and request contracts before
+  implementation. This also applies to frontend work inside a larger feature.
 
 **Exit boundary:** reuse inventory written and referenced by `state.md`. An
 *empty* inventory for a task touching existing domains is a red flag,
@@ -353,6 +357,10 @@ Do:
   new behavior).
 - Use the verify skill to exercise the affected flow end-to-end, not just
   unit tests.
+- For affected frontend work, run `frontend-quality`'s executable checks against
+  the real routes and states, including both fresh-browser passes and relevant
+  interaction assertions. Keep its report and screenshots with the test evidence;
+  compilation or a lint pass alone does not verify the UI.
 - **Pre-review consolidation pass:** once the planned tests pass, run
   [../consolidate/SKILL.md](../consolidate/SKILL.md) and re-run the test suite
   before entering Phase 5.
@@ -373,6 +381,11 @@ Do — in fresh-context subagents, never the implementing context:
   that proving tests use independent oracles, exercise real boundaries, avoid
   low-signal count padding, and carry zero semantic sediment).
 - **Correctness pass:** run the code-review skill on the diff.
+- **Frontend evidence pass, when affected:** the fresh reviewer follows the
+  sibling `frontend-quality` rubric, inspects the final screenshots and both
+  browser passes, and challenges route/state coverage, keyboard assertions and
+  request contracts. Give them the task and raw evidence without the
+  implementer's conclusions. Fix findings and repeat the affected checks.
 - **Zoom-out pass:** would a larger refactor, test factory, or architectural
   change increase simplicity or flow? Classify anything required for the
   approved design as a finding; it must be fixed or explicitly waived.
@@ -400,6 +413,9 @@ Do:
   passing proving test and preserve the distinction between deterministic
   tests, recorded provider replay, live verification, and dataset evaluation.
   Confirm the architecture diagram is still accurate.
+- For affected frontend work, verify that `frontend-quality` evidence and its
+  independent review cover the delivered revision. A blocked browser run or
+  missing state coverage remains unverified, even when other checks pass.
 - If any diagram source changed after Gate A, render every changed diagram in
   dark and light, inspect the final pixels, repeat the guide self-check, and
   record the detail in `evidence.md`. When the repository provides a
@@ -464,7 +480,9 @@ ordering explicitly stated by a profile, can:
   migration both up and down.
 - **frontend** — Phase 5 adds a separate self-QA turn: drive the UI with
   Playwright (screenshots, console errors, responsive check) and audit
-  against the frontend-quality skill rubric.
+  against the shipped [frontend-quality skill](../frontend-quality/SKILL.md).
+  Its executable checks and fresh-reviewer evidence pass apply to frontend
+  portions of every profile, not only this one.
 - **infra / IaC** — implementation stops at plan/what-if output
   (`terraform plan`, `az ... what-if`). Applying is beyond Gate B: user-run
   or explicitly user-approved per invocation.
@@ -472,8 +490,10 @@ ordering explicitly stated by a profile, can:
 ## Delegation note
 
 Skills named in this loop (grilling, verify, code-review, writing-house-style,
-revise-claude-md, frontend-quality, graphify) are always invoked **live** via
-the Skill tool. The `reference/` folder contains stale, version-stamped
+revise-claude-md, frontend-quality, graphify) are invoked **live** through the
+harness's skill mechanism. For shipped siblings, including `frontend-quality`,
+read the linked `SKILL.md` directly when no Skill tool is available. The
+`reference/` folder contains stale, version-stamped
 transcripts of built-in skills for human reading and upgrade-diffing only —
 never load or follow anything in `reference/` as instructions.
 
@@ -491,6 +511,9 @@ never load or follow anything in `reference/` as instructions.
   plus auto-memory via the revise-claude-md skill. Codex has no equivalent
   skill — the target is the repo's AGENTS.md (layered: `~/.codex/AGENTS.md`
   then a root-to-CWD walk); edit it directly.
+- **Frontend quality:** both harnesses use the shipped sibling
+  [frontend-quality skill](../frontend-quality/SKILL.md) and its locked checker.
+  It does not depend on a separate Claude plugin or a framework-specific skill.
 - **Built-in delegates without a Codex equivalent — inline fallback:**
   - **verify** (Phase 4): no native Codex skill. Fallback: build, run, and
     drive the actual affected surface yourself; capture real output
@@ -502,7 +525,7 @@ never load or follow anything in `reference/` as instructions.
     explicitly for the angles this loop cares about — removed guards,
     call-site breakage, reuse of existing helpers, unnecessary complexity,
     the anti-patterns.md checklist — rather than a general impression pass.
-  - **graphify**, **deep-research**, **microsoft-docs**, **frontend-quality**
+  - **graphify**, **deep-research**, **microsoft-docs**
     (Phase 0/5, situational): Claude Code plugin conveniences. Codex
     fallback is doing the equivalent research or QA pass directly with your
     own web-search/browser-driving capability; no separate skill required.
