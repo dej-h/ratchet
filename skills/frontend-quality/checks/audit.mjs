@@ -2,7 +2,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { parseArgs } from "node:util";
+import { inspect, parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
@@ -13,7 +13,16 @@ async function probe(run, name, operation) {
   try {
     await operation();
   } catch (error) {
-    run.failures.push(`${name}: ${error.name || "Error"}: ${error.message || String(error)}`);
+    const diagnostic = { probe: name, name: error?.name || "Error", message: error?.message || String(error) };
+    if (error && typeof error === "object") {
+      for (const field of ["actual", "expected", "operator"]) {
+        if (field in error) diagnostic[field] = inspect(error[field], {
+          depth: 3, maxArrayLength: 30, maxStringLength: 2000,
+        });
+      }
+    }
+    run.diagnostics.push(diagnostic);
+    run.failures.push(`${name}: ${diagnostic.name}: ${diagnostic.message}`);
   }
   run.checks[name] = run.failures.length === failuresBefore ? "PASS" : "FAIL";
 }
@@ -24,10 +33,11 @@ async function inspectRun(browser, config, scenario, viewport, pass, index, outp
   page.setDefaultTimeout(config.timeoutMs);
   const failures = [];
   const consoleErrors = [];
+  const requestErrors = [];
   const requests = [];
   const tracked = new Map();
   const screenshot = `pass-${pass}-scenario-${index}-${viewport.width}x${viewport.height}.png`;
-  const run = { scenario: scenario.name, viewport, pass, screenshot, requests, failures, checks: {} };
+  const run = { scenario: scenario.name, viewport, pass, screenshot, requests, failures, checks: {}, diagnostics: [] };
   let session;
   try {
     if (config.prepare) await config.prepare({ context, page, scenario, pass, viewport });
@@ -53,18 +63,18 @@ async function inspectRun(browser, config, scenario, viewport, pass, index, outp
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push({ text: message.text(), url: message.location().url });
     });
-    page.on("pageerror", (error) => failures.push(`Uncaught page error: ${error.message}`));
+    page.on("pageerror", (error) => consoleErrors.push({ text: error.message, pageError: true }));
     page.on("request", (request) => {
       if (!["fetch", "xhr"].includes(request.resourceType())) return;
       const url = new URL(request.url());
       if (!config.apiPrefixes.some((prefix) => url.pathname.startsWith(prefix))) return;
       if (!config.apiOrigins.includes(url.origin)) {
-        failures.push("API request uses an undeclared origin");
+        requestErrors.push("API request uses an undeclared origin");
         return;
       }
       const resource = scenario.resources.find((item) => matchesResource(item, url, request.method()));
       if (resource && !phases.has(resource.phase)) {
-        failures.push(`Resource ${resource.id} started before phase ${resource.phase} was marked`);
+        requestErrors.push(`Resource ${resource.id} started before phase ${resource.phase} was marked`);
       }
       const record = { resource: resource?.id ?? null, method: request.method(), status: null,
         startMs: Date.now() - epoch, endMs: null, failure: null };
@@ -133,7 +143,9 @@ async function inspectRun(browser, config, scenario, viewport, pass, index, outp
     await probe(run, "screenshot", () => page.screenshot({
       path: path.join(output, screenshot), fullPage: true, timeout: config.timeoutMs,
     }));
-    await probe(run, "requests", async () => { failures.push(...checkRequests(scenario, requests)); });
+    await probe(run, "requests", async () => {
+      failures.push(...requestErrors, ...checkRequests(scenario, requests));
+    });
     await probe(run, "console", async () => {
       for (const message of consoleErrors) {
         const expectedHTTP = message.text.startsWith("Failed to load resource:") && message.url
@@ -141,7 +153,7 @@ async function inspectRun(browser, config, scenario, viewport, pass, index, outp
             && matchesResource(resource, new URL(message.url), resource.method)
             && requests.some((request) => request.resource === resource.id
               && resource.statuses.includes(request.status) && request.status >= 400));
-        if (!expectedHTTP) failures.push(`Browser console error: ${message.text}`);
+        if (!expectedHTTP) failures.push(`${message.pageError ? "Uncaught page error" : "Browser console error"}: ${message.text}`);
       }
     });
     run.declaredDepth = scenario.declaredDepth;

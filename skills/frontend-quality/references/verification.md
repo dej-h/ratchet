@@ -90,7 +90,8 @@ inspects fonts used to render glyphs, not just computed `font-family` strings.
 The command exits 0 only when every scenario, viewport and pass succeeds; 1 is
 a quality failure and 2 is invalid configuration or unavailable tooling. It
 writes `report.json` plus a screenshot per measured run. The report records
-per-probe outcomes, assertion diagnostics, console errors and request IDs,
+per-probe outcomes, assertion diagnostics (including bounded actual/expected
+values even with a custom message), console errors and request IDs,
 methods, statuses and timings. Request metadata excludes headers, bodies, query
 values and authentication state. Assertion/console messages and screenshots may
 contain application content. Store artifacts according to the target application's

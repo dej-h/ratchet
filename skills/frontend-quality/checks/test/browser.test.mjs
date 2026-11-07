@@ -43,7 +43,7 @@ test("failed interactions retain their diagnostics and do not skip independent s
   const config = fixtureConfig(baseURL, "accessible-name");
   config.scenarios[0].exercise = async ({ page }) => {
     await page.evaluate(() => { document.body.style.width = "2000px"; });
-    assert.equal(await page.getByRole("status").textContent(), "Catalog unavailable", "Activity recovery must be visible");
+    assert.match(await page.getByRole("status").textContent(), /Catalog unavailable/, "Activity recovery must be visible");
   };
   const report = await audit(config, path.join(directory, "interaction-failure"));
   assert.equal(report.status, "FAIL");
@@ -53,8 +53,10 @@ test("failed interactions retain their diagnostics and do not skip independent s
     assert.equal(run.checks.accessibility, "FAIL");
     assert.equal(run.checks.requests, "PASS");
     assert.equal(run.checks.screenshot, "PASS");
-    assert.ok(run.failures.some((failure) => failure.includes("Activity recovery must be visible")
-      && failure.includes("2 items") && failure.includes("Catalog unavailable")));
+    assert.ok(run.failures.some((failure) => failure.includes("Activity recovery must be visible")));
+    const assertion = run.diagnostics.find((diagnostic) => diagnostic.probe === "interaction");
+    assert.ok(assertion.actual.includes("2 items"));
+    assert.ok(assertion.expected.includes("Catalog unavailable"));
     assert.ok(run.failures.includes("Page overflows horizontally"));
     assert.ok(run.accessibility.some((violation) => violation.id === "button-name"));
   }
@@ -119,7 +121,8 @@ test("interaction-triggered reads have explicit phases instead of being mistaken
   };
   const unmarked = await audit(config, path.join(directory, "unmarked-phase"));
   assert.equal(unmarked.status, "FAIL");
-  assert.ok(unmarked.runs.every((run) => run.failures.some((failure) => failure.includes("before phase inspect"))));
+  assert.ok(unmarked.runs.every((run) => run.checks.requests === "FAIL"
+    && run.failures.some((failure) => failure.includes("before phase inspect"))));
 });
 
 test("browser defects fail their intended checks under the same route contract", async (suite) => {
