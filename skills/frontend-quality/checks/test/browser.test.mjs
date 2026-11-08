@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { audit } from "../audit.mjs";
-import { startFixture, fixtureConfig } from "../examples/catalog-fixture.mjs";
+import { startFixture, fixtureConfig } from "./fixtures/catalog-fixture.mjs";
 
 let fixture;
 let baseURL;

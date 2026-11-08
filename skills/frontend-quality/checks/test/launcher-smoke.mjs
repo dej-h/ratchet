@@ -4,7 +4,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { startFixture } from "../examples/catalog-fixture.mjs";
+import { startFixture } from "./fixtures/catalog-fixture.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const parent = process.env.RATCHET_FRONTEND_LAUNCHER_ARTIFACTS || tmpdir();
@@ -32,7 +32,7 @@ async function launch(output, environment = {}) {
 
 try {
   await writeFile(path.join(directory, "config.mjs"), `
-    import { fixtureConfig } from ${JSON.stringify(pathToFileURL(path.join(root, "examples/catalog-fixture.mjs")).href)};
+    import { fixtureConfig } from ${JSON.stringify(pathToFileURL(path.join(root, "test/fixtures/catalog-fixture.mjs")).href)};
     export default fixtureConfig(${JSON.stringify(fixture.baseURL)}, "catalog");
   `);
   await launch(path.join(directory, "cold"));

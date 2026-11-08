@@ -12,7 +12,7 @@ and an activity section. Both endpoints are independent. Use the provided local
 fixture and leave runnable checks and your evidence.”
 
 Use the browser fixture's `/waterfall` variant and contract from
-`checks/examples/catalog-fixture.mjs`. Success means the evaluator runs the checker,
+`checks/test/fixtures/catalog-fixture.mjs`. Success means the evaluator runs the checker,
 finds sequential independent requests, distinguishes observation from cause,
 and reruns a corrected fixture or proves the same contract passes `/catalog`.
 It must not pass the task by increasing tolerances, removing resources or
