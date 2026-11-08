@@ -27,6 +27,12 @@ Ships as one plugin tree read directly by both harnesses via the
   de-sedimentation pass that strips prompt echoing, transition narration
   (`"Previously X, now Y"`), redundant comments, prompt-shaped test names, and
   transitional wrappers from a diff before review or PR creation.
+- **`frontend-quality`** ([skill](skills/frontend-quality/SKILL.md)): standalone
+  UI quality rubric, canonical data-loading policy, and locked browser checks
+  for accessibility, overflow, errors, request concurrency and repeated runs.
+  Applies to frontend portions of every `swe-loop` profile and preserves the
+  application's brand and framework. See [verification](skills/frontend-quality/references/verification.md)
+  for route configuration and evidence review.
 - **`diagram-loop`** (`skills/diagram-loop/SKILL.md`): 8-phase visual-production
   workflow that compiles a declarative `scene.yaml` contract into measured
   geometry, style frames, contact sheets, PNGs, and optional MP4/WebM exports.
@@ -63,7 +69,7 @@ codex plugin add ratchet@ratchet
 
 Invoke skills in Claude Code with `/ratchet:<skill>` (for example
 `/ratchet:swe-loop`, `/ratchet:consolidate`, `/ratchet:work-packages`,
-`/ratchet:diagram-loop`, `/ratchet:grill-me`) and in Codex with
+`/ratchet:frontend-quality`, `/ratchet:diagram-loop`, `/ratchet:grill-me`) and in Codex with
 `$ratchet:<skill>`.
 
 When a repository contains `.ratchet/work-packages.yaml`, the `SessionStart` and
@@ -75,6 +81,8 @@ When a repository contains `.ratchet/work-packages.yaml`, the `SessionStart` and
 claude plugin validate .
 uv run tools/validate.py
 uv run pytest -q
+cd skills/frontend-quality/checks && npm ci && npx playwright install chromium && npm test && npm run test:launcher
+cd ../../..
 cd tools/diagrams && npm ci && npm test && npm run diagrams:check
 cd ../../skills/diagram-loop/renderer && npm ci && npm run typecheck && npm test && npm run test:media
 ```

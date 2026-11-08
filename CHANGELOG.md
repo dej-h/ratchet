@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0 (2026-11-08)
+
+- Added standalone `frontend-quality` with a brand-neutral rubric, canonical
+  query policy, throttled browser checks, deliberate failure fixtures and
+  fresh-agent evaluation scenarios. Frontend work in every `swe-loop` profile
+  uses the shipped skill for contracts, verification and evidence review.
+
 ## 0.5.0 (2026-11-02)
 
 - Added `work-packages` skill and `.ratchet/` templates (`work-packages.yaml`,

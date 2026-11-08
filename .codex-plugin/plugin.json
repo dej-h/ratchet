@@ -1,7 +1,7 @@
 {
   "name": "ratchet",
-  "version": "0.5.0",
-  "description": "Phase-gated SWE delivery, work-package tracking, diff consolidation, and deterministic diagram compilation for Claude Code and Codex.",
+  "version": "0.6.0",
+  "description": "Phase-gated SWE delivery, work-package tracking, frontend quality checks, diff consolidation, and deterministic diagram compilation for Claude Code and Codex.",
   "author": "Dejan Honderd",
   "license": "MIT",
   "skills": "./skills",

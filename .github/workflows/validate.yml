@@ -19,6 +19,7 @@ jobs:
           cache-dependency-path: |
             tools/diagrams/package-lock.json
             skills/diagram-loop/renderer/package-lock.json
+            skills/frontend-quality/checks/package-lock.json
 
       - name: Install locked diagram renderer
         working-directory: tools/diagrams
@@ -72,6 +73,36 @@ jobs:
 
       - name: Run validator test suite
         run: uv run pytest -q
+
+      - name: Install locked frontend quality checks
+        working-directory: skills/frontend-quality/checks
+        run: npm ci
+
+      - name: Install frontend check browser
+        working-directory: skills/frontend-quality/checks
+        run: npx playwright install --with-deps chromium
+
+      - name: Run frontend query and browser contract tests
+        working-directory: skills/frontend-quality/checks
+        env:
+          RATCHET_FRONTEND_TEST_ARTIFACTS: ${{ runner.temp }}/frontend-quality-evidence
+        run: npm test
+
+      - name: Smoke-test frontend checks from a read-only plugin tree
+        env:
+          RATCHET_FRONTEND_LAUNCHER_ARTIFACTS: ${{ runner.temp }}/frontend-quality-evidence/launcher
+        run: |
+          chmod -R a-w skills/frontend-quality
+          npm --prefix skills/frontend-quality/checks run test:launcher
+
+      - name: Upload frontend evidence after a failing contract test
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-quality-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/frontend-quality-evidence
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Smoke-test installed renderer from a read-only plugin tree
         run: |
