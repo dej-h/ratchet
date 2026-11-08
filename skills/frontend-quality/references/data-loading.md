@@ -96,10 +96,25 @@ outside scope, and report the resulting limitation.
 
 ## Prove the contract
 
-Describe the route's resources with `after` edges. The runner rejects cycles,
+Describe the route's resources with `after` edges for prerequisites that must
+all complete. Use `afterAny` when any one successful source supplies the input,
+such as a listing ID returned by history or a watchlist. Declared depth uses
+the longest possible path, including every alternative; a short fallback must
+not hide a potentially deeper chain. Observed timing
+still requires an actual successful prerequisite before the dependent request.
+The ordering comparison allows `dependencyToleranceMs` (default 5 ms) for small
+browser timing differences, including intercepted test responses. This does not
+relax the separate 25 ms minimum overlap required for independent requests.
+The runner rejects cycles,
 unknown dependencies and a declared depth above `maxDepth` (default 2). A root
-request has depth 1. Every resource must be observed, with canonical query
+request has depth 1. Every required resource must be observed, with canonical query
 parameters and at most its configured request count. Undeclared API calls fail.
+
+Use `required: false` only for a request conditional on data or a branch that
+may not be rendered in that scenario. Its parameters, count, failures and
+dependencies are still checked if it occurs. Keep the source requests required
+and assert the visible branch in `exercise`; optional requests must not hide
+missing essential content or a failed load.
 
 Under throttling, resources in the same entry/interaction phase that share
 the same prerequisites must overlap: the

@@ -62,6 +62,19 @@ test("failed interactions retain their diagnostics and do not skip independent s
   }
 });
 
+test("holding an independent response does not turn concurrent initiation into a waterfall", async () => {
+  const config = fixtureConfig(baseURL, "catalog");
+  config.prepare = async ({ page }) => {
+    const activityFinished = page.waitForResponse('**/api/activity').then(response => response.finished());
+    await page.route('**/api/catalog?limit=30', async route => {
+      await activityFinished;
+      await route.continue();
+    });
+  };
+  const report = await audit(config, path.join(directory, "held-independent-response"));
+  assert.equal(report.status, "PASS", JSON.stringify(report));
+});
+
 test("expected HTTP failures can verify recovery without masking application errors", async () => {
   const config = fixtureConfig(baseURL, "recovery");
   config.scenarios[0].resources[0].statuses = [503];

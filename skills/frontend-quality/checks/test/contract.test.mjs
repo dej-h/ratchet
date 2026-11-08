@@ -26,6 +26,8 @@ test("invalid dependency graphs and unaudited budget relaxations fail before a b
     [{ id: "a", pathname: "/api/a", after: ["a"] }],
     [{ id: "a", pathname: "/api/a" }, { id: "b", pathname: "/api/b", after: ["a"] },
       { id: "c", pathname: "/api/c", after: ["b"] }],
+    [{ id: "a", pathname: "/api/a" }, { id: "b", pathname: "/api/b", after: ["a"] },
+      { id: "c", pathname: "/api/c", afterAny: ["a", "b"] }],
   ]) assert.throws(() => normalizeConfig(base(resources)));
   const config = base([]);
   config.scenarios[0].maxDepth = 3;
@@ -62,4 +64,30 @@ test("resource identity distinguishes API origins and rejects ambiguous declarat
   assert.equal(matchesResource(crm, new URL("https://billing.example/api/profile"), "GET"), false);
   delete config.scenarios[0].resources[0].origin;
   assert.throws(() => normalizeConfig(config), /declare it explicitly/);
+});
+
+test("conditional reads may use either successful data source while required reads remain enforced", () => {
+  const input = base([
+    { id: "history", pathname: "/api/history" },
+    { id: "watchlist", pathname: "/api/watchlist" },
+    { id: "prices", pathname: "/api/prices", afterAny: ["history", "watchlist"], required: false },
+  ]);
+  const scenario = normalizeConfig(input).scenarios[0];
+  assert.equal(scenario.declaredDepth, 2);
+  const parents = requests([["history", 0, 200], ["watchlist", 0, 400]]);
+  assert.deepEqual(checkRequests(scenario, [...parents, ...requests([["prices", 210, 500]])]), []);
+  assert.deepEqual(checkRequests(scenario, [...parents, ...requests([["prices", 198, 500]])]), []);
+  assert.deepEqual(checkRequests(scenario, parents), []);
+  assert.match(checkRequests(scenario, [...parents, ...requests([["prices", 100, 500]])]).join(), /alternative prerequisite/);
+  assert.match(checkRequests(scenario, requests([["watchlist", 0, 400]])).join(), /Missing required resource: history/);
+  const failedHistory = { ...parents[0], status: 503 };
+  scenario.resources[0].statuses = [503];
+  assert.match(checkRequests(scenario, [failedHistory, parents[1], ...requests([["prices", 210, 500]])]).join(), /alternative prerequisite/);
+  assert.deepEqual(checkRequests(scenario, [failedHistory, parents[1], ...requests([["prices", 410, 600]])]), []);
+  scenario.resources[0].required = false;
+  scenario.resources[2].after = ["history"];
+  scenario.resources[2].afterAny = [];
+  assert.match(checkRequests(scenario, [parents[1], ...requests([["prices", 410, 600]])]).join(), /declared prerequisite history/);
+  input.scenarios[0].resources[2].afterAny = ["prices", "history"];
+  assert.throws(() => normalizeConfig(input), /acyclic/);
 });

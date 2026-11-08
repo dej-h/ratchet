@@ -89,10 +89,11 @@ async function inspectRun(browser, config, scenario, viewport, pass, index, outp
       const record = tracked.get(request);
       if (!record) return;
       const timing = request.timing();
+      record.endMs = Date.now() - epoch;
       if (timing.startTime > 0 && timing.responseEnd >= 0) {
-        record.startMs = timing.startTime - epoch;
-        record.endMs = record.startMs + timing.responseEnd;
-      } else record.endMs = Date.now() - epoch;
+        record.networkStartMs = timing.startTime - epoch;
+        record.networkEndMs = record.networkStartMs + timing.responseEnd;
+      }
       if (failed) record.failure = request.failure()?.errorText ?? "request failed";
     };
     page.on("requestfinished", (request) => finish(request, false));

@@ -56,7 +56,11 @@ Every scenario needs a nonempty `ready` selector and an `exercise` callback.
 Readiness must mean the relevant UI settled; it is not `networkidle`. Required
 requests must have finished before the final assertion, so point readiness at
 the actual completed state or wait explicitly inside `exercise`. Each resource
-defaults to `after: []`, `method: "GET"`, and `maxRequests: 1`. Query parameters
+defaults to `after: []`, `method: "GET"`, and `maxRequests: 1`.
+`after` requires all parents to succeed; `afterAny` accepts the first successful parent.
+Resources are required by default. Conditional reads can use `required: false`
+when their visible branch is asserted separately; they remain checked if sent.
+Query parameters
 match exactly, including repeated values supplied as arrays. Declare separate
 resources for intentionally different parameter sets. All matching origins and
 API prefixes are checked; do not omit a cross-origin API to make a route pass.
@@ -96,6 +100,11 @@ methods, statuses and timings. Request metadata excludes headers, bodies, query
 values and authentication state. Assertion/console messages and screenshots may
 contain application content. Store artifacts according to the target application's
 existing test-data policy.
+
+Concurrency uses the observed browser request and completion events on one
+clock. Optional `networkStartMs`/`networkEndMs` retain transport timings for
+diagnosis. A test that holds a response must not move the request's initiation
+time and turn intentional response delay into a reported waterfall.
 
 A failed interaction does not skip the independent overflow, accessibility,
 font, screenshot and request probes. Each probe has its own outcome; a probe

@@ -63,22 +63,25 @@ export function normalizeConfig(input) {
     requireCondition(typeof scenario.ready === "string" && scenario.ready.trim(), "Declare observable readiness");
     requireCondition(typeof scenario.exercise === "function", "Each scenario needs interaction assertions in exercise");
     requireCondition(Array.isArray(scenario.resources), "Declare resources, or [] for a static surface");
-    const normalized = { maxDepth: 2, minOverlapMs: 25, allowedAborts: [], fonts: [], ...scenario };
+    const normalized = { maxDepth: 2, minOverlapMs: 25, dependencyToleranceMs: 5, allowedAborts: [], fonts: [], ...scenario };
     requireCondition(Number.isInteger(normalized.maxDepth) && normalized.maxDepth > 0, "maxDepth must be positive");
     requireCondition(Number.isFinite(normalized.minOverlapMs) && normalized.minOverlapMs >= 0,
       "minOverlapMs must be nonnegative");
-    if (normalized.maxDepth > 2 || normalized.minOverlapMs < 25) {
+    requireCondition(Number.isFinite(normalized.dependencyToleranceMs) && normalized.dependencyToleranceMs >= 0,
+      "dependencyToleranceMs must be nonnegative");
+    if (normalized.maxDepth > 2 || normalized.minOverlapMs < 25 || normalized.dependencyToleranceMs > 5) {
       requireCondition(typeof normalized.budgetRationale === "string" && normalized.budgetRationale.trim(),
         "Relaxed budgets require budgetRationale");
     }
     const ids = new Set();
     const signatures = new Set();
     normalized.resources = scenario.resources.map((resource) => {
-      const item = { method: "GET", query: {}, after: [], maxRequests: 1, phase: "entry",
+      const item = { method: "GET", query: {}, after: [], afterAny: [], required: true, maxRequests: 1, phase: "entry",
         origin: config.apiOrigins.length === 1 ? config.apiOrigins[0] : undefined, ...resource };
       requireCondition(typeof item.id === "string" && item.id.trim() && !ids.has(item.id), "Resource IDs must be unique");
       ids.add(item.id);
       requireCondition(typeof item.phase === "string" && item.phase.trim(), "Resource phases must be named");
+      requireCondition(typeof item.required === "boolean", "required must be a boolean");
       requireCondition(typeof item.pathname === "string" && item.pathname.startsWith("/")
         && !item.pathname.includes("?") && !item.pathname.includes("#"), "Resources need a pathname without query or fragment");
       requireCondition(typeof item.method === "string" && /^[A-Z]+$/.test(item.method), "Resource methods must be uppercase");
@@ -90,6 +93,8 @@ export function normalizeConfig(input) {
       "Query values must be strings or nonempty string arrays");
       requireCondition(Array.isArray(item.after) && item.after.every((id) => typeof id === "string")
         && new Set(item.after).size === item.after.length, "after must contain unique resource IDs");
+      requireCondition(Array.isArray(item.afterAny) && item.afterAny.every((id) => typeof id === "string")
+        && new Set(item.afterAny).size === item.afterAny.length, "afterAny must contain unique resource IDs");
       requireCondition(Number.isInteger(item.maxRequests) && item.maxRequests > 0, "maxRequests must be positive");
       requireCondition(item.statuses === undefined || (Array.isArray(item.statuses) && item.statuses.length > 0
         && item.statuses.every((status) => Number.isInteger(status) && status >= 200 && status <= 599)),
@@ -106,7 +111,10 @@ export function normalizeConfig(input) {
       requireCondition(byId.has(id), `Unknown dependency: ${id}`);
       requireCondition(!visiting.has(id), "Resource dependencies must be acyclic");
       const next = new Set(visiting).add(id);
-      return 1 + Math.max(0, ...byId.get(id).after.map((parent) => depth(parent, next)));
+      const resource = byId.get(id);
+      const alternatives = resource.afterAny.map((parent) => depth(parent, next));
+      return 1 + Math.max(0, ...resource.after.map((parent) => depth(parent, next)),
+        ...alternatives);
     };
     normalized.declaredDepth = Math.max(0, ...normalized.resources.map(({ id }) => depth(id)));
     requireCondition(normalized.declaredDepth <= normalized.maxDepth,
@@ -141,24 +149,31 @@ export function checkRequests(scenario, requests) {
   }
   for (const resource of scenario.resources) {
     const matches = requests.filter((request) => request.resource === resource.id);
-    if (matches.length === 0) failures.push(`Missing required resource: ${resource.id}`);
+    if (matches.length === 0 && resource.required) failures.push(`Missing required resource: ${resource.id}`);
     if (matches.length > resource.maxRequests) failures.push(`Duplicate resource: ${resource.id} (${matches.length} requests)`);
     if (matches.length) first.set(resource.id, matches[0]);
   }
   const groups = new Map();
   for (const resource of scenario.resources) {
-    const key = JSON.stringify([resource.phase, [...resource.after].sort()]);
+    const key = JSON.stringify([resource.phase, [...resource.after].sort(), [...resource.afterAny].sort()]);
     if (!groups.has(key)) groups.set(key, []);
     const request = first.get(resource.id);
     if (request?.endMs !== null && request?.endMs !== undefined) groups.get(key).push(request);
     if (request) {
       for (const parent of resource.after) {
         const prerequisite = first.get(parent);
-        if (prerequisite?.endMs !== null && prerequisite?.endMs !== undefined
-          && request.startMs < prerequisite.endMs) {
-          failures.push(`Resource ${resource.id} started before declared prerequisite ${parent} completed`);
+        if (!prerequisite || prerequisite.endMs === null || prerequisite.failure
+          || prerequisite.status === null || prerequisite.status >= 400
+          || request.startMs + scenario.dependencyToleranceMs < prerequisite.endMs) {
+          failures.push(`Resource ${resource.id} started before declared prerequisite ${parent} completed successfully`);
         }
       }
+      if (resource.afterAny.length && !resource.afterAny.some((parent) => {
+        const prerequisite = first.get(parent);
+        return prerequisite && prerequisite.endMs !== null && !prerequisite.failure
+          && prerequisite.status !== null && prerequisite.status < 400
+          && request.startMs + scenario.dependencyToleranceMs >= prerequisite.endMs;
+      })) failures.push(`Resource ${resource.id} started before any declared alternative prerequisite completed successfully`);
     }
   }
   for (const group of groups.values()) {
