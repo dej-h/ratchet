@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import subprocess
 
 import pytest
@@ -25,6 +26,7 @@ from tools.validate import (
 PLUGIN_NAME = "ratchet"
 VERSION = "0.4.0"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+STATE_TEMPLATE_PATH = PROJECT_ROOT / "skills" / "swe-loop" / "templates" / "state.md"
 
 PALETTE = """    classDef success   fill:#d3f9d8,stroke:#2f9e44,color:#1a3620
     classDef transport fill:#d0ebff,stroke:#1971c2,color:#0b3866
@@ -163,6 +165,45 @@ def write_swe_loop_contract_fixture(root: Path) -> None:
         target = root / relative_path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text((PROJECT_ROOT / relative_path).read_text())
+
+
+def template_loop_statuses() -> list[str]:
+    """Return the cursor Status options exactly as the shipped state.md template spells them."""
+    cursor = STATE_TEMPLATE_PATH.read_text().split("## Cursor", 1)[1].split("\n## ", 1)[0]
+    match = re.search(r"^- \*\*Status:\*\* (.+)$", cursor, re.MULTILINE)
+    assert match, f"no cursor Status field in {STATE_TEMPLATE_PATH}"
+    return [option.strip() for option in match.group(1).split("|")]
+
+
+def write_loop_state(loop_dir: Path, cursor: dict[str, str]) -> None:
+    """Write state.md from the shipped template with the given cursor fields filled in."""
+    text = STATE_TEMPLATE_PATH.read_text()
+    for field, value in cursor.items():
+        text, count = re.subn(
+            rf"^- \*\*{re.escape(field)}:\*\* .*$",
+            lambda _: f"- **{field}:** {value}",
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        assert count == 1, f"no {field!r} field in {STATE_TEMPLATE_PATH}"
+    loop_dir.mkdir(parents=True)
+    (loop_dir / "state.md").write_text(text)
+
+
+# Every Status option in the state.md template must be classified here, so a new
+# option fails test_template_loop_statuses_are_classified until the hooks handle it.
+OPEN_LOOP_STATUSES = {"in progress", "blocked"}
+CLOSED_LOOP_STATUSES = {"done"}
+LOOP_STATUS_CASES = [
+    *((status, status in OPEN_LOOP_STATUSES) for status in template_loop_statuses()),
+    # Legacy and hand-edited spellings of an open loop.
+    ("active", True),
+    ("in_progress", True),
+    ("In-Progress", True),
+    ("Blocked", True),
+    ("Done", False),
+]
 
 
 def replace_once(path: Path, old: str, new: str) -> None:
@@ -1023,24 +1064,27 @@ class TestWorkPackagesContract:
         assert "#99: Brand new untracked GitHub issue" in res.stdout
         assert "#10: Already tracked issue" not in res.stdout
 
+    def test_template_loop_statuses_are_classified(self) -> None:
+        assert set(template_loop_statuses()) == OPEN_LOOP_STATUSES | CLOSED_LOOP_STATUSES
+
+    @pytest.mark.parametrize(("status", "is_open"), LOOP_STATUS_CASES)
     def test_swe_loop_cursor_recovery_and_workspace_mode_commit_block(
-        self, tmp_path: Path
+        self, tmp_path: Path, status: str, is_open: bool
     ) -> None:
         repo_dir = tmp_path / "sample-repo"
         (repo_dir / ".git").mkdir(parents=True)
         loops_root = tmp_path / "swe-loops"
-        loop_dir = loops_root / "sample-repo" / "auth-fix"
-        loop_dir.mkdir(parents=True)
-        (loop_dir / "state.md").write_text(
-            "# Loop state: auth-fix\n\n"
-            "## Cursor\n\n"
-            "- **Profile:** bugfix\n"
-            "- **Mode:** workspace\n"
-            "- **Status:** active\n"
-            "- **Current phase:** 4 Test\n"
-            "- **Current boundary:** phase4.test-intent\n"
-            "- **Current task:** T2\n"
-            "- **Next action:** Run reproduction test\n"
+        write_loop_state(
+            loops_root / "sample-repo" / "auth-fix",
+            {
+                "Profile": "bugfix",
+                "Mode": "workspace",
+                "Status": status,
+                "Current phase": "4 Test",
+                "Current boundary": "phase4.test-intent",
+                "Current task": "T2",
+                "Next action": "Run reproduction test",
+            },
         )
         env = {
             **subprocess.os.environ,
@@ -1054,11 +1098,6 @@ class TestWorkPackagesContract:
             env=env,
             check=True,
         )
-        assert "<ratchet-swe-loop>" in start_res.stdout
-        assert "Active swe-loop 'auth-fix'" in start_res.stdout
-        assert "mode=workspace" in start_res.stdout
-        assert "Next action: Run reproduction test" in start_res.stdout
-
         pre_res = subprocess.run(
             ["node", str(PROJECT_ROOT / "hooks" / "pre-tool-use.mjs")],
             input=json.dumps(
@@ -1072,6 +1111,17 @@ class TestWorkPackagesContract:
             env=env,
             check=True,
         )
+
+        if not is_open:
+            assert start_res.stdout == ""
+            assert pre_res.stdout == ""
+            return
+
+        assert "<ratchet-swe-loop>" in start_res.stdout
+        assert "Active swe-loop 'auth-fix'" in start_res.stdout
+        assert f"status={status.lower().replace('_', ' ').replace('-', ' ')}" in start_res.stdout
+        assert "mode=workspace" in start_res.stdout
+        assert "Next action: Run reproduction test" in start_res.stdout
         decision = json.loads(pre_res.stdout)
         assert decision["hookSpecificOutput"]["permissionDecision"] == "deny"
         assert "workspace mode" in decision["hookSpecificOutput"]["permissionDecisionReason"]

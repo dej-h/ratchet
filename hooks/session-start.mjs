@@ -7,6 +7,9 @@ import { pathToFileURL } from 'node:url';
 
 const WORK_PACKAGES_FILE = 'work-packages.yaml';
 const HUMAN_DEPS_FILE = 'human-dependencies.md';
+// Loop statuses that keep a swe-loop open. `in progress` and `blocked` come from
+// skills/swe-loop/templates/state.md; `active` is a legacy spelling.
+const OPEN_LOOP_STATUSES = new Set(['in progress', 'blocked', 'active']);
 
 /**
  * Walk upward from startDir looking for `.ratchet/work-packages.yaml`.
@@ -53,7 +56,16 @@ function readStateField(stateText, fieldName) {
 }
 
 /**
- * Find active swe-loop state.md files for the repository at startDir.
+ * Lowercase a loop status and treat spaces, underscores and hyphens alike, so
+ * `In Progress`, `in_progress` and `in-progress` all read as `in progress`.
+ */
+function normalizeLoopStatus(rawStatus) {
+  return rawStatus.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+}
+
+/**
+ * Find open (in progress or blocked) swe-loop state.md files for the
+ * repository at startDir.
  */
 export function findActiveSweLoops(startDir) {
   const repoRoot = findRepoRoot(startDir);
@@ -76,8 +88,8 @@ export function findActiveSweLoops(startDir) {
       continue;
     }
     const text = fs.readFileSync(statePath, 'utf8');
-    const status = readStateField(text, 'Status').toLowerCase();
-    if (status === 'active' || status === 'in_progress') {
+    const status = normalizeLoopStatus(readStateField(text, 'Status'));
+    if (OPEN_LOOP_STATUSES.has(status)) {
       activeLoops.push({
         slug: entry.name,
         statePath,
@@ -101,7 +113,7 @@ export function buildSweLoopBriefing(activeLoops) {
   const lines = ['<ratchet-swe-loop>'];
   for (const loop of activeLoops) {
     lines.push(
-      `Active swe-loop '${loop.slug}' (${loop.statePath}): mode=${loop.mode || 'unknown'}, profile=${loop.profile || 'feature'}, phase=${loop.currentPhase || 'unknown'}, boundary=${loop.currentBoundary || 'none'}, task=${loop.currentTask || 'none'}.`
+      `Active swe-loop '${loop.slug}' (${loop.statePath}): status=${loop.status}, mode=${loop.mode || 'unknown'}, profile=${loop.profile || 'feature'}, phase=${loop.currentPhase || 'unknown'}, boundary=${loop.currentBoundary || 'none'}, task=${loop.currentTask || 'none'}.`
     );
     if (loop.nextAction) {
       lines.push(`  Next action: ${loop.nextAction}`);
